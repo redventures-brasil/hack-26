@@ -40,9 +40,13 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        # `--omit=optional` skips better-sqlite3 (local-dev only); the
-        # production backend is DynamoDB via @aws-sdk/lib-dynamodb.
-        run: npm ci --omit=optional
+        # Install everything including optionalDependencies — Next's build
+        # resolver still needs better-sqlite3 at compile time even though
+        # lib/db/queries.ts only dynamic-imports it. The native binary ends
+        # up dead code at runtime in prod (DYNAMO_SUBMISSIONS is set), but
+        # GHA's Ubuntu x86_64 build matches Lambda's runtime arch so it's
+        # safe to ship.
+        run: npm ci
 
       - name: Build Next.js (standalone)
         run: npm run build
