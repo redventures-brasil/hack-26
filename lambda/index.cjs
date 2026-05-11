@@ -73,11 +73,15 @@ function forward(event) {
   const rawQuery = event?.rawQueryString || "";
   const fullPath = rawQuery ? `${rawPath}?${rawQuery}` : rawPath;
 
-  // Normalize headers: APIGW v2 lowercases them already, but we drop host
-  // so the standalone server sees its own host.
+  // Normalize headers: APIGW v2 lowercases them already, but we:
+  //   - drop host (set our own loopback host)
+  //   - drop accept-encoding so the upstream Next server returns plain
+  //     bytes. CloudFront re-compresses based on the *client's*
+  //     Accept-Encoding on the way back.
   const headers = {};
   for (const [k, v] of Object.entries(event?.headers || {})) {
-    if (k.toLowerCase() === "host") continue;
+    const lk = k.toLowerCase();
+    if (lk === "host" || lk === "accept-encoding") continue;
     headers[k] = v;
   }
   headers["host"] = `127.0.0.1:${PORT}`;
@@ -105,7 +109,12 @@ function forward(event) {
         res.on("end", () => {
           const buf = Buffer.concat(chunks);
           const ct = res.headers["content-type"] || "";
-          const isBin = BINARY_CT.test(ct);
+          const enc = res.headers["content-encoding"] || "";
+          // Anything that's binary by content-type OR already encoded
+          // (gzip/br/deflate) MUST go back as base64. utf8-stringifying
+          // raw compressed bytes silently corrupts them and the browser
+          // hits ERR_CONTENT_DECODING_FAILED.
+          const isBin = BINARY_CT.test(ct) || enc !== "";
           // APIGW v2 wants headers as a flat string map; arrays go into
           // a separate `cookies` field.
           const respHeaders = {};

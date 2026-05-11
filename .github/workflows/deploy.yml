@@ -97,10 +97,13 @@ jobs:
           echo "deploy bucket: $DEPLOY"
 
       - name: Sync /_next/static to S3 (immutable cache)
+        # No --delete on purpose: Next produces hashed filenames so a new
+        # build only adds files. Keeping old chunks around means a user
+        # who loaded HTML from the previous build can still fetch its
+        # chunks (avoids the blank-page race during deploy).
         run: |
           aws s3 sync .next/static "s3://${{ steps.buckets.outputs.assets }}/_next/static" \
-            --cache-control "public, max-age=31536000, immutable" \
-            --delete
+            --cache-control "public, max-age=31536000, immutable"
 
       - name: Upload Lambda zip to deploy bucket
         id: upload
