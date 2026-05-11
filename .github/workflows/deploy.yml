@@ -128,18 +128,9 @@ jobs:
             --no-cli-pager > /dev/null
           echo "update-function-code dispatched"
 
-      - name: Invalidate CloudFront
-        run: |
-          set -euo pipefail
-          DIST_ID="$(aws cloudfront list-distributions \
-            --query "DistributionList.Items[?Aliases.Items && contains(Aliases.Items, \`${CF_ALIAS}\`)].Id | [0]" \
-            --output text)"
-          if [ -z "${DIST_ID}" ] || [ "${DIST_ID}" = "None" ]; then
-            echo "No CloudFront distribution found for alias ${CF_ALIAS}" >&2
-            exit 1
-          fi
-          echo "Invalidating ${DIST_ID}"
-          aws cloudfront create-invalidation \
-            --distribution-id "${DIST_ID}" \
-            --paths "/*" \
-            --no-cli-pager > /dev/null
+      # No CloudFront invalidation step on purpose: the distribution's
+      # default cache behavior uses cf_managed_caching_disabled, and the
+      # only cached paths (/_next/static/* and /static/*) are immutable —
+      # new builds produce new hashed filenames, and uploaded assets
+      # never change. Adding invalidation here would also need
+      # cloudfront:ListDistributions on the GHA role, which it doesn't have.
