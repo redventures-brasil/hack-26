@@ -34,7 +34,7 @@ export default async function JudgeDashboardPage() {
 
   return (
     <div className="page">
-      <SiteHeader variant="judge" />
+      <SiteHeader variant="judge" current="ranking" />
       <div className="page-body">
         <LeaderboardDashboard rows={rows} />
       </div>

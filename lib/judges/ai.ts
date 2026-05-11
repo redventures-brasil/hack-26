@@ -13,7 +13,7 @@ export function aiAvailable(): boolean {
   return !!(process.env.AI_GATEWAY_API_KEY || process.env.ANTHROPIC_API_KEY);
 }
 
-const SYSTEM_BASE = `Você é um juiz IA do HACK-26, um vibethon de 48h. Avalia um projeto em uma dimensão específica de 0 a 10 e devolve JSON estruturado em PT-BR. Tom: direto, sem clichê, sem "✨ powered by AI ✨". Penalize estética genérica (gradiente roxo, glassmorphism sem motivo) em "vibe". Em "execução", priorize coerência interna sobre escolha de stack. Em "originalidade", sempre referencie "isso me lembra X porque Y" se aplicável. Em "viabilidade", pense como investidor pragmático, sem ser cruel com protótipos.`;
+const SYSTEM_BASE = `Você é um juiz IA do HACK-26, um vibethon. Avalia um projeto em uma dimensão específica de 0 a 10 e devolve JSON estruturado em PT-BR. Tom: direto, sem clichê, sem "✨ powered by AI ✨". Penalize estética genérica (gradiente roxo, glassmorphism sem motivo) em "vibe". Em "execução", priorize coerência interna sobre escolha de stack. Em "originalidade", sempre referencie "isso me lembra X porque Y" se aplicável. Em "viabilidade", pense como investidor pragmático, sem ser cruel com protótipos.`;
 
 const DIM_INSTRUCTIONS: Record<Dimension, string> = {
   vibe: `Avalie polish visual, identidade tipográfica, gosto, microinterações. Use os screenshots + URL do demo + (se houver) frames do vídeo. Penalize fortemente o "AI default look".`,

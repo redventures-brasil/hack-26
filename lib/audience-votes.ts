@@ -9,7 +9,6 @@
 
 const KEY = "hack26.popular-votes.v1";
 const DEVICE_KEY = "hack26.device-id";
-const EVENT_KEY = "hack26.event-code";
 const EMAIL_KEY = "hack26.voter-email";
 
 export type VoteMap = Record<string, number>; // teamId -> 1..5
@@ -29,21 +28,6 @@ export function getDeviceId(): string {
     localStorage.setItem(DEVICE_KEY, id);
   }
   return id;
-}
-
-export function getEventCode(): string | null {
-  if (!isBrowser()) return null;
-  return localStorage.getItem(EVENT_KEY);
-}
-
-export function setEventCode(code: string): void {
-  if (!isBrowser()) return;
-  localStorage.setItem(EVENT_KEY, code.trim().toUpperCase());
-}
-
-export function clearEventCode(): void {
-  if (!isBrowser()) return;
-  localStorage.removeItem(EVENT_KEY);
 }
 
 export function getEmail(): string | null {

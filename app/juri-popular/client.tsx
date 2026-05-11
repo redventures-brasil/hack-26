@@ -1,14 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import {
   getDeviceId,
   getEmail,
-  getEventCode,
   getVotes,
   setEmail,
-  setEventCode,
   setVote,
   type VoteMap,
 } from "@/lib/audience-votes";
@@ -45,28 +42,14 @@ export function JuriPopularClient({
 }: {
   votableTeams: VotableTeam[];
 }) {
-  const params = useSearchParams();
-  const evtFromUrl = params.get("evt");
-
   const hydrated = useHydrated();
 
   // Local-only state — only set in event handlers
-  const [codeInput, setCodeInput] = useState("");
-  const [codeError, setCodeError] = useState(false);
   const [emailInput, setEmailInput] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
-  const [gateConfirmed, setGateConfirmed] = useState<string | null>(null);
+  const [emailConfirmed, setEmailConfirmed] = useState(false);
   const [voteTick, bumpVotes] = useReducer((x: number) => x + 1, 0);
   const [toast, setToast] = useState<string | null>(null);
-
-  // Sync URL `?evt=` to localStorage exactly once (side effect, no React state)
-  const urlSynced = useRef(false);
-  useEffect(() => {
-    if (urlSynced.current) return;
-    urlSynced.current = true;
-    const fromUrl = evtFromUrl?.trim().toUpperCase();
-    if (fromUrl && fromUrl !== getEventCode()) setEventCode(fromUrl);
-  }, [evtFromUrl]);
 
   // Auto-clear the toast after 2.2s
   useEffect(() => {
@@ -75,16 +58,11 @@ export function JuriPopularClient({
     return () => window.clearTimeout(id);
   }, [toast]);
 
-  // Derived state read each render (post-hydration)
-  const code: string | null = !hydrated
-    ? null
-    : (gateConfirmed ??
-       evtFromUrl?.trim().toUpperCase() ??
-       getEventCode() ??
-       "");
-
+  // Derived state read each render (post-hydration).
+  // `emailConfirmed` is read so React picks up the gate transition immediately
+  // after the user submits — storedEmail would lag a render otherwise.
   const storedEmail: string | null = hydrated ? getEmail() : null;
-  const hasEmail = !!storedEmail;
+  const hasEmail = emailConfirmed || !!storedEmail;
 
   const votes: VoteMap = useMemo(() => {
     if (!hydrated) return {};
@@ -100,82 +78,43 @@ export function JuriPopularClient({
   );
 
   // not hydrated yet → render an empty stage to avoid flashing the gate
-  if (code === null) {
+  if (!hydrated) {
     return <div className="jpv-stage" />;
   }
 
-  // ─── gate ───────────────────────────────────────────────
-  if (!code || !hasEmail) {
+  // ─── gate (email-only) ─────────────────────────────────
+  if (!hasEmail) {
     return (
       <div className="jp-gate-stage">
         <form
           className="jp-gate"
           onSubmit={(e) => {
             e.preventDefault();
-            const nextCode = codeInput.trim().toUpperCase() || code || "";
             const nextEmail = emailInput.trim().toLowerCase();
             const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextEmail);
-            let blocked = false;
-            if (!code && !nextCode) {
-              setCodeError(true);
-              blocked = true;
-            }
             if (!emailOk) {
               setEmailError("coloca um email válido — pra confirmar seu voto.");
-              blocked = true;
+              return;
             }
-            if (blocked) return;
-            if (!code) setEventCode(nextCode);
             setEmail(nextEmail);
-            setGateConfirmed(nextCode);
+            setEmailConfirmed(true);
           }}
         >
           <div className="t-eyebrow">acesso · júri popular</div>
           <h2 className="t-edit-h2" style={{ margin: "8px 0 8px" }}>
-            {code ? "Seu email." : "Código do evento."}
+            Seu email.
           </h2>
           <p
             className="muted-2 t-small"
             style={{ margin: "0 0 8px", lineHeight: 1.5 }}
           >
-            {code
-              ? "Pra confirmar quem votou — não compartilhamos."
-              : "Está no telão. Também dá pra escanear o QR no fundo da sala — ele cai aqui já preenchido."}
+            Pra confirmar quem votou. Não compartilhamos, é só pra contar 1
+            voto por pessoa.
           </p>
 
           <span className="jp-gate-perf perf" aria-hidden="true" />
 
-          {!code && (
-            <div className="ed-field">
-              <label htmlFor="evt">código</label>
-              <input
-                id="evt"
-                className="jp-gate-code"
-                type="text"
-                value={codeInput}
-                onChange={(e) => {
-                  setCodeInput(e.target.value);
-                  if (codeError) setCodeError(false);
-                }}
-                placeholder="HACK26"
-                autoFocus
-                autoComplete="off"
-                spellCheck={false}
-                maxLength={16}
-                style={
-                  codeError ? { borderBottomColor: "#FF6B6B" } : undefined
-                }
-              />
-              {codeError && (
-                <div className="err" style={{ color: "#FF6B6B" }}>
-                  cola o código que tá no telão.
-                </div>
-              )}
-              <div className="hint">qualquer texto vale pro demo.</div>
-            </div>
-          )}
-
-          <div className="ed-field" style={{ marginTop: !code ? 20 : 0 }}>
+          <div className="ed-field">
             <label htmlFor="voter-email">email</label>
             <input
               id="voter-email"
@@ -186,7 +125,7 @@ export function JuriPopularClient({
                 if (emailError) setEmailError(null);
               }}
               placeholder="voce@exemplo.com"
-              autoFocus={!!code}
+              autoFocus
               autoComplete="email"
               inputMode="email"
               spellCheck={false}
@@ -230,7 +169,6 @@ export function JuriPopularClient({
         submissionId: teamId,
         deviceId: getDeviceId(),
         stars,
-        eventCode: code,
         email: getEmail(),
       }),
     }).catch(() => {
@@ -245,7 +183,7 @@ export function JuriPopularClient({
       votedCount={votedCount}
       onVote={handleVote}
       toast={toast}
-      eventCode={code}
+      voterEmail={storedEmail ?? ""}
     />
   );
 }
@@ -258,14 +196,14 @@ function VoteSlideshow({
   votedCount,
   onVote,
   toast,
-  eventCode,
+  voterEmail,
 }: {
   teams: VotableTeam[];
   votes: VoteMap;
   votedCount: number;
   onVote: (teamId: string, stars: number) => void;
   toast: string | null;
-  eventCode: string;
+  voterEmail: string;
 }) {
   // index in [0..teams.length-1] is a project slide, teams.length = summary
   const SUMMARY = teams.length;
@@ -315,7 +253,7 @@ function VoteSlideshow({
     return (
       <div className="jpv-stage jpv-empty">
         <div className="jpv-empty-inner">
-          <div className="t-eyebrow">júri popular · código {eventCode}</div>
+          <div className="t-eyebrow">júri popular · {voterEmail}</div>
           <h1 className="jpv-empty-title">Ainda não tem projetos pra votar.</h1>
           <p className="muted-2">
             Volta aqui quando as apresentações começarem.
@@ -330,8 +268,8 @@ function VoteSlideshow({
       <span className="jpv-burst" aria-hidden="true" />
 
       <header className="jpv-topbar">
-        <div className="t-eyebrow">
-          júri popular · código {eventCode}
+        <div className="t-eyebrow jpv-voter">
+          júri popular · <span className="jpv-voter-email">{voterEmail}</span>
         </div>
         <div className="jpv-counter t-mono-num" aria-live="polite">
           <span>{String(Math.min(idx + 1, SUMMARY)).padStart(2, "0")}</span>

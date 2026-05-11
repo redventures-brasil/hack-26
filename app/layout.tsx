@@ -31,7 +31,7 @@ const plusJakarta = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: "HACK-26 · Avaliação por IA",
   description:
-    "Vibethon de 48h. IA julga em 4 dimensões, humanos decidem o ranking final.",
+    "Vibethon. IA julga em 4 dimensões, humanos decidem o ranking final.",
 };
 
 export default function RootLayout({

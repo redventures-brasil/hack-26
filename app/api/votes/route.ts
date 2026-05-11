@@ -9,7 +9,8 @@ const Body = z.object({
   deviceId: z.string().min(8).max(80),
   stars: z.number().int().min(1).max(5),
   eventCode: z.string().max(40).nullable().optional(),
-  email: z.string().email().max(120).nullable().optional(),
+  // Email é obrigatório — voto popular só conta com identificação do eleitor.
+  email: z.string().trim().toLowerCase().email().max(120),
 });
 
 export async function POST(req: Request) {
@@ -21,7 +22,11 @@ export async function POST(req: Request) {
   }
   const parsed = Body.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
+    const emailIssue = parsed.error.issues.some((i) => i.path[0] === "email");
+    return NextResponse.json(
+      { error: emailIssue ? "email_required" : "invalid_payload" },
+      { status: 400 },
+    );
   }
   const v = parsed.data;
   if (!(await getSubmission(v.submissionId))) {
@@ -36,7 +41,7 @@ export async function POST(req: Request) {
     deviceId: v.deviceId,
     stars: v.stars,
     eventCode: v.eventCode ?? null,
-    email: v.email ?? null,
+    email: v.email,
   });
   return NextResponse.json({ ok: true });
 }
