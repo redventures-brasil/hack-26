@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { SiteHeader } from "@/components/site-header";
-import { listSubmissions } from "@/lib/db/queries";
-import { JuriPopularClient } from "./client";
+import { listSubmissions, parseJsonArray } from "@/lib/db/queries";
+import { JuriPopularClient, type VotableTeam } from "./client";
 
 export const metadata = {
   title: "HACK-26 · Júri popular",
@@ -11,13 +11,18 @@ export const metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function JuriPopularPage() {
-  const teams = (await listSubmissions())
+  const teams: VotableTeam[] = (await listSubmissions())
     .filter((s) => s.status === "done" || s.status === "evaluating")
     .map((s) => ({
       id: s.id,
       team: s.teamName,
       project: s.projectName,
       tagline: s.tagline ?? "",
+      description: s.description,
+      githubUrl: s.githubUrl,
+      demoUrl: s.demoUrl,
+      videoUrl: s.videoUrl,
+      screenshots: parseJsonArray(s.screenshotUrls),
     }));
 
   return (
