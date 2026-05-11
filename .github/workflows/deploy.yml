@@ -128,6 +128,33 @@ jobs:
             --no-cli-pager > /dev/null
           echo "update-function-code dispatched"
 
+      - name: Force runtime nodejs22.x
+        # Drift over Terraform on purpose — the platform's AWS provider
+        # (~> 4.0) doesn't know nodejs20.x/22.x yet, but Next 16 requires
+        # Node >= 20.9. We bump every deploy so TF's eventual revert to
+        # nodejs18.x gets corrected on the next push.
+        run: |
+          set -euo pipefail
+          # update-function-code may still be in-flight; retry until the
+          # function is no longer InProgress (no GetFunctionConfiguration
+          # permission, so we use update + try/except style).
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if aws lambda update-function-configuration \
+                --function-name "${LAMBDA_NAME}" \
+                --runtime nodejs22.x \
+                --no-cli-pager > /dev/null 2>err.log; then
+              echo "runtime set to nodejs22.x"
+              exit 0
+            fi
+            if grep -q "ResourceConflictException" err.log; then
+              echo "update in progress, retrying in 6s..."
+              sleep 6
+              continue
+            fi
+            echo "unexpected error:"; cat err.log; exit 1
+          done
+          echo "gave up after 10 retries"; exit 1
+
       # No CloudFront invalidation step on purpose: the distribution's
       # default cache behavior uses cf_managed_caching_disabled, and the
       # only cached paths (/_next/static/* and /static/*) are immutable —
