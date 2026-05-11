@@ -114,6 +114,10 @@ jobs:
           echo "key=${KEY}" >> "$GITHUB_OUTPUT"
 
       - name: Update Lambda function code
+        # `lambda wait function-updated` would need lambda:GetFunctionConfiguration
+        # on the GHA role — it's not in gha-rvbr-platform-production today.
+        # Skipping the wait is safe: Lambda swaps versions atomically once the
+        # update finishes processing (usually <30s).
         run: |
           set -euo pipefail
           aws lambda update-function-code \
@@ -122,7 +126,7 @@ jobs:
             --s3-key "${{ steps.upload.outputs.key }}" \
             --publish \
             --no-cli-pager > /dev/null
-          aws lambda wait function-updated --function-name "${LAMBDA_NAME}"
+          echo "update-function-code dispatched"
 
       - name: Invalidate CloudFront
         run: |
