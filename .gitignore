@@ -32,6 +32,13 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# local SQLite database + WAL/SHM sidecars
+.data/
+
+# user uploads (videos + screenshots from /api/upload)
+/public/uploads/
 
 # vercel
 .vercel
