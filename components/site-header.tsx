@@ -7,7 +7,7 @@ type Variant = "public" | "judge";
 
 type Props = {
   variant?: Variant;
-  current?: "submit" | "votar" | "premios";
+  current?: "submit" | "votar" | "avaliacao" | "guia" | "ranking";
 };
 
 export function SiteHeader({ variant = "public", current }: Props) {
@@ -43,8 +43,11 @@ export function SiteHeader({ variant = "public", current }: Props) {
           >
             Votar
           </Link>
-          <Link href="#" className={current === "premios" ? "active" : ""}>
-            Prêmios
+          <Link
+            href="/avaliacao"
+            className={current === "avaliacao" ? "active" : ""}
+          >
+            Avaliação
           </Link>
           <Link href="/judge/login" className="ed-link">
             Sou juiz ↗
@@ -54,7 +57,18 @@ export function SiteHeader({ variant = "public", current }: Props) {
 
       {variant === "judge" && (
         <nav>
-          <span className="ts">avaliação 14:32 BRT</span>
+          <Link
+            href="/judge"
+            className={current === "ranking" ? "active" : ""}
+          >
+            Ranking
+          </Link>
+          <Link
+            href="/judge/guia"
+            className={current === "guia" ? "active" : ""}
+          >
+            Guia
+          </Link>
           <button
             type="button"
             onClick={logout}
