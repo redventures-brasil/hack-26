@@ -15,6 +15,15 @@ const serverless = require("serverless-http");
 process.env.NEXT_RUNTIME = "nodejs";
 process.env.NEXT_TELEMETRY_DISABLED = "1";
 
+// TEMP DEBUG — surface any process-wide errors that Lambda would otherwise
+// silently kill the worker over.
+process.on("unhandledRejection", (reason) => {
+  console.error("[lambda] unhandledRejection", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[lambda] uncaughtException", err);
+});
+
 const PUBLIC_DIR = path.join(__dirname, "public");
 
 const required = require(path.join(__dirname, ".next/required-server-files.json"));
@@ -89,8 +98,18 @@ const server = http.createServer(async (req, res) => {
   } catch (err) {
     console.error("[lambda] request handler error", err);
     if (!res.headersSent) {
-      res.writeHead(500, { "content-type": "text/plain" });
-      res.end("internal server error");
+      // TEMP DEBUG — return the error details directly so APIGW doesn't
+      // hide them behind the generic 500 body.
+      res.writeHead(500, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          debug: "inner_catch",
+          name: err?.name ?? null,
+          message: err?.message ?? String(err),
+          code: err?.code ?? null,
+          stack: (err?.stack ?? "").split("\n").slice(0, 12),
+        }),
+      );
     } else {
       res.end();
     }
@@ -114,5 +133,23 @@ exports.handler = async (event, context) => {
   // drain the event loop before returning the response — they continue
   // running until the Lambda timeout (set generously in Terraform).
   context.callbackWaitsForEmptyEventLoop = false;
-  return wrapped(event, context);
+  try {
+    return await wrapped(event, context);
+  } catch (err) {
+    // TEMP DEBUG — surface the failure so APIGW doesn't swallow it as
+    // the generic "Internal Server Error" body. Remove once the Dynamo
+    // issue is resolved.
+    console.error("[lambda] OUTER handler error", err);
+    return {
+      statusCode: 500,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        debug: "lambda_outer_catch",
+        name: err?.name ?? null,
+        message: err?.message ?? String(err),
+        code: err?.code ?? null,
+        stack: (err?.stack ?? "").split("\n").slice(0, 12),
+      }),
+    };
+  }
 };
