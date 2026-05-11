@@ -23,9 +23,11 @@ env:
   AWS_REGION: sa-east-1
   AWS_ACCOUNT_ID: "397142353537"
   LAMBDA_NAME: hack-26-production
-  ASSETS_BUCKET: hack-26-assets-production
-  DEPLOY_BUCKET: hack-26-lambda-deploy-production
   CF_ALIAS: hack-26.redplatform.com.br
+  # Bucket names follow the redventures-brasil/s3/aws module's naming
+  # convention which we can't predict here — resolved at runtime.
+  ASSETS_BUCKET_HINT: hack-26-assets
+  DEPLOY_BUCKET_HINT: hack-26-lambda-deploy
 
 jobs:
   deploy:
@@ -74,9 +76,32 @@ jobs:
           role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/gha-rvbr-platform-production
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Resolve bucket names
+        id: buckets
+        run: |
+          set -euo pipefail
+          ALL="$(aws s3api list-buckets --query 'Buckets[].Name' --output text)"
+          pick() {
+            # First match in the account whose name contains the hint and
+            # ends with the workspace, e.g. hack-26-assets-production-xxx.
+            for b in $ALL; do
+              case "$b" in
+                *"$1"*production*) echo "$b"; return 0 ;;
+              esac
+            done
+            echo "no bucket matched hint '$1' (account=$AWS_ACCOUNT_ID)" >&2
+            return 1
+          }
+          ASSETS="$(pick "$ASSETS_BUCKET_HINT")"
+          DEPLOY="$(pick "$DEPLOY_BUCKET_HINT")"
+          echo "assets=$ASSETS" >> "$GITHUB_OUTPUT"
+          echo "deploy=$DEPLOY" >> "$GITHUB_OUTPUT"
+          echo "assets bucket: $ASSETS"
+          echo "deploy bucket: $DEPLOY"
+
       - name: Sync /_next/static to S3 (immutable cache)
         run: |
-          aws s3 sync .next/static "s3://${ASSETS_BUCKET}/_next/static" \
+          aws s3 sync .next/static "s3://${{ steps.buckets.outputs.assets }}/_next/static" \
             --cache-control "public, max-age=31536000, immutable" \
             --delete
 
@@ -85,7 +110,7 @@ jobs:
         run: |
           set -euo pipefail
           KEY="hack-26-${GITHUB_SHA}.zip"
-          aws s3 cp lambda.zip "s3://${DEPLOY_BUCKET}/${KEY}"
+          aws s3 cp lambda.zip "s3://${{ steps.buckets.outputs.deploy }}/${KEY}"
           echo "key=${KEY}" >> "$GITHUB_OUTPUT"
 
       - name: Update Lambda function code
@@ -93,7 +118,7 @@ jobs:
           set -euo pipefail
           aws lambda update-function-code \
             --function-name "${LAMBDA_NAME}" \
-            --s3-bucket "${DEPLOY_BUCKET}" \
+            --s3-bucket "${{ steps.buckets.outputs.deploy }}" \
             --s3-key "${{ steps.upload.outputs.key }}" \
             --publish \
             --no-cli-pager > /dev/null
