@@ -1,0 +1,112 @@
+name: deploy
+
+# Push to main → build Next standalone → push static assets to the
+# CloudFront S3 origin → bundle Lambda zip → swap function code →
+# invalidate CloudFront. AWS auth is OIDC against the
+# gha-rvbr-platform-production role provisioned in
+# tfe_rv-rvbr-platform/application-infrastructure/gha-oidc.tf.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: sa-east-1
+  AWS_ACCOUNT_ID: "397142353537"
+  LAMBDA_NAME: hack-26-production
+  ASSETS_BUCKET: hack-26-assets-production
+  DEPLOY_BUCKET: hack-26-lambda-deploy-production
+  CF_ALIAS: hack-26.redplatform.com.br
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        # `--omit=optional` skips better-sqlite3 (local-dev only); the
+        # production backend is DynamoDB via @aws-sdk/lib-dynamodb.
+        run: npm ci --omit=optional
+
+      - name: Build Next.js (standalone)
+        run: npm run build
+
+      - name: Assemble Lambda bundle
+        # Standalone emits a self-contained server at .next/standalone with
+        # its own node_modules. We add our Lambda entrypoint + public/ so
+        # routes like /favicon.ico still resolve when CloudFront forwards
+        # to the API GW origin. serverless-http is not imported by any Next
+        # route so the tracer misses it — copy it in manually.
+        run: |
+          set -euo pipefail
+          cp lambda/index.cjs .next/standalone/index.cjs
+          cp -R public .next/standalone/public
+          mkdir -p .next/standalone/node_modules/serverless-http
+          cp -R node_modules/serverless-http/. .next/standalone/node_modules/serverless-http/
+          # Static assets are served from S3 via CloudFront — keep them
+          # out of the Lambda zip to shave ~MBs.
+          (cd .next/standalone && zip -qr "$GITHUB_WORKSPACE/lambda.zip" .)
+          ls -la lambda.zip
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/gha-rvbr-platform-production
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Sync /_next/static to S3 (immutable cache)
+        run: |
+          aws s3 sync .next/static "s3://${ASSETS_BUCKET}/_next/static" \
+            --cache-control "public, max-age=31536000, immutable" \
+            --delete
+
+      - name: Upload Lambda zip to deploy bucket
+        id: upload
+        run: |
+          set -euo pipefail
+          KEY="hack-26-${GITHUB_SHA}.zip"
+          aws s3 cp lambda.zip "s3://${DEPLOY_BUCKET}/${KEY}"
+          echo "key=${KEY}" >> "$GITHUB_OUTPUT"
+
+      - name: Update Lambda function code
+        run: |
+          set -euo pipefail
+          aws lambda update-function-code \
+            --function-name "${LAMBDA_NAME}" \
+            --s3-bucket "${DEPLOY_BUCKET}" \
+            --s3-key "${{ steps.upload.outputs.key }}" \
+            --publish \
+            --no-cli-pager > /dev/null
+          aws lambda wait function-updated --function-name "${LAMBDA_NAME}"
+
+      - name: Invalidate CloudFront
+        run: |
+          set -euo pipefail
+          DIST_ID="$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Aliases.Items && contains(Aliases.Items, \`${CF_ALIAS}\`)].Id | [0]" \
+            --output text)"
+          if [ -z "${DIST_ID}" ] || [ "${DIST_ID}" = "None" ]; then
+            echo "No CloudFront distribution found for alias ${CF_ALIAS}" >&2
+            exit 1
+          fi
+          echo "Invalidating ${DIST_ID}"
+          aws cloudfront create-invalidation \
+            --distribution-id "${DIST_ID}" \
+            --paths "/*" \
+            --no-cli-pager > /dev/null
