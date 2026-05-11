@@ -24,6 +24,16 @@ process.on("uncaughtException", (err) => {
   console.error("[lambda] uncaughtException", err);
 });
 
+// TEMP DEBUG — log Node version + arch at cold start so we can see in
+// CloudWatch what runtime Lambda is actually using.
+console.log("[lambda] cold start", {
+  nodeVersion: process.version,
+  arch: process.arch,
+  region: process.env.AWS_REGION,
+  hasFileGlobal: typeof globalThis.File !== "undefined",
+  hasFormDataGlobal: typeof globalThis.FormData !== "undefined",
+});
+
 const PUBLIC_DIR = path.join(__dirname, "public");
 
 const required = require(path.join(__dirname, ".next/required-server-files.json"));
@@ -134,7 +144,17 @@ exports.handler = async (event, context) => {
   // running until the Lambda timeout (set generously in Terraform).
   context.callbackWaitsForEmptyEventLoop = false;
   try {
-    return await wrapped(event, context);
+    const result = await wrapped(event, context);
+    // TEMP DEBUG — bake the Node version into every response header so
+    // we can see what runtime Lambda is using from a curl response.
+    if (result && typeof result === "object") {
+      result.headers = {
+        ...(result.headers ?? {}),
+        "x-debug-node": process.version,
+        "x-debug-method": event?.requestContext?.http?.method ?? "?",
+      };
+    }
+    return result;
   } catch (err) {
     // TEMP DEBUG — surface the failure so APIGW doesn't swallow it as
     // the generic "Internal Server Error" body. Remove once the Dynamo
@@ -142,9 +162,14 @@ exports.handler = async (event, context) => {
     console.error("[lambda] OUTER handler error", err);
     return {
       statusCode: 500,
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        "x-debug-node": process.version,
+        "x-debug-where": "outer-catch",
+      },
       body: JSON.stringify({
         debug: "lambda_outer_catch",
+        node: process.version,
         name: err?.name ?? null,
         message: err?.message ?? String(err),
         code: err?.code ?? null,
