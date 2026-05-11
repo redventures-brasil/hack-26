@@ -1,22 +1,25 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 // AWS Lambda handler for the hack-26 Next.js app.
 //
-// Layout when packaged: this file sits at the root of the Lambda zip,
-// alongside the `next build --output=standalone` output (server.js,
-// node_modules/, .next/, public/, package.json). The CI workflow assembles
-// that layout in .github/workflows/deploy.yml.
+// Strategy: boot the standalone-emitted server.js in-process (it binds a
+// Node HTTP server to 127.0.0.1:PORT) and proxy each Lambda invocation
+// to it via http.request. This is the same pattern as AWS Lambda Web
+// Adapter but kept in JS so we don't need a custom layer.
+//
+// Why not call NextServer.getRequestHandler() directly? It only handles
+// app/page routes — the full filesystem/static-files pipeline lives in
+// next/dist/server/lib/router-server, which `startServer` mounts and
+// `server.js` boots. Skipping that path makes POSTs crash with
+// Runtime.NodeJsExit on Node 22.
 
 const http = require("node:http");
-const fs = require("node:fs");
-const fsp = require("node:fs/promises");
 const path = require("node:path");
-const serverless = require("serverless-http");
 
-process.env.NEXT_RUNTIME = "nodejs";
+const PORT = 3000;
+process.env.PORT = String(PORT);
+process.env.HOSTNAME = "127.0.0.1";
 process.env.NEXT_TELEMETRY_DISABLED = "1";
 
-// TEMP DEBUG — surface any process-wide errors that Lambda would otherwise
-// silently kill the worker over.
 process.on("unhandledRejection", (reason) => {
   console.error("[lambda] unhandledRejection", reason);
 });
@@ -24,156 +27,128 @@ process.on("uncaughtException", (err) => {
   console.error("[lambda] uncaughtException", err);
 });
 
-// TEMP DEBUG — log Node version + arch at cold start so we can see in
-// CloudWatch what runtime Lambda is actually using.
 console.log("[lambda] cold start", {
-  nodeVersion: process.version,
+  node: process.version,
   arch: process.arch,
   region: process.env.AWS_REGION,
-  hasFileGlobal: typeof globalThis.File !== "undefined",
-  hasFormDataGlobal: typeof globalThis.FormData !== "undefined",
 });
 
-const PUBLIC_DIR = path.join(__dirname, "public");
+// Boot the standalone server. It starts an HTTP listener on PORT;
+// startServer() inside it never resolves under normal operation.
+require(path.join(__dirname, "server.js"));
 
-const required = require(path.join(__dirname, ".next/required-server-files.json"));
-
-const NextServer = require("next/dist/server/next-server").default;
-
-const nextServer = new NextServer({
-  conf: required.config,
-  dir: __dirname,
-  dev: false,
-  customServer: false,
-  minimalMode: false,
-  hostname: "127.0.0.1",
-  port: 3000,
-});
-
-const handleNext = nextServer.getRequestHandler();
-
-// Minimal content-type table for the files we actually ship under public/.
-const MIME = {
-  ".otf": "font/otf",
-  ".ttf": "font/ttf",
-  ".woff": "font/woff",
-  ".woff2": "font/woff2",
-  ".svg": "image/svg+xml",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".gif": "image/gif",
-  ".webp": "image/webp",
-  ".ico": "image/x-icon",
-  ".txt": "text/plain; charset=utf-8",
-  ".json": "application/json",
-  ".pdf": "application/pdf",
-};
-
-// Plain-Node http server. We special-case `public/` (Next's standalone
-// NextServer doesn't serve it on its own — only the full router-server
-// pipeline that `startServer` boots does, and we can't use that here
-// because it binds a port). Everything else goes through Next.
-const server = http.createServer(async (req, res) => {
-  try {
-    const url = req.url || "/";
-    if (req.method === "GET" || req.method === "HEAD") {
-      const cleanPath = url.split("?")[0];
-      // Reject traversal attempts before touching the filesystem.
-      if (!cleanPath.includes("..")) {
-        const candidate = path.join(PUBLIC_DIR, cleanPath);
-        if (
-          candidate.startsWith(PUBLIC_DIR + path.sep) &&
-          fs.existsSync(candidate) &&
-          fs.statSync(candidate).isFile()
-        ) {
-          const ext = path.extname(candidate).toLowerCase();
-          const type = MIME[ext] ?? "application/octet-stream";
-          const body = await fsp.readFile(candidate);
-          res.writeHead(200, {
-            "content-type": type,
-            "content-length": body.length,
-            "cache-control": "public, max-age=86400",
-          });
-          if (req.method === "HEAD") {
-            res.end();
-          } else {
-            res.end(body);
-          }
-          return;
-        }
-      }
-    }
-    await handleNext(req, res);
-  } catch (err) {
-    console.error("[lambda] request handler error", err);
-    if (!res.headersSent) {
-      // TEMP DEBUG — return the error details directly so APIGW doesn't
-      // hide them behind the generic 500 body.
-      res.writeHead(500, { "content-type": "application/json" });
-      res.end(
-        JSON.stringify({
-          debug: "inner_catch",
-          name: err?.name ?? null,
-          message: err?.message ?? String(err),
-          code: err?.code ?? null,
-          stack: (err?.stack ?? "").split("\n").slice(0, 12),
-        }),
+let readyPromise = null;
+function waitUntilReady(deadlineMs = 30000) {
+  if (readyPromise) return readyPromise;
+  readyPromise = new Promise((resolve, reject) => {
+    const start = Date.now();
+    const probe = () => {
+      const req = http.request(
+        { host: "127.0.0.1", port: PORT, path: "/", method: "HEAD", timeout: 1000 },
+        (res) => {
+          res.resume();
+          resolve();
+        },
       );
-    } else {
-      res.end();
-    }
-  }
-});
+      req.on("error", () => {
+        if (Date.now() - start > deadlineMs) {
+          reject(new Error("standalone server never became ready"));
+        } else {
+          setTimeout(probe, 100);
+        }
+      });
+      req.on("timeout", () => req.destroy());
+      req.end();
+    };
+    probe();
+  });
+  return readyPromise;
+}
 
-const wrapped = serverless(server, {
-  binary: [
-    "image/*",
-    "video/*",
-    "audio/*",
-    "font/*",
-    "application/pdf",
-    "application/zip",
-    "application/octet-stream",
-  ],
-});
+const BINARY_CT = /^(image|video|audio|font)\/|^application\/(pdf|zip|octet-stream)/i;
+
+function forward(event) {
+  const method = event?.requestContext?.http?.method || event?.httpMethod || "GET";
+  const rawPath = event?.rawPath || event?.path || "/";
+  const rawQuery = event?.rawQueryString || "";
+  const fullPath = rawQuery ? `${rawPath}?${rawQuery}` : rawPath;
+
+  // Normalize headers: APIGW v2 lowercases them already, but we drop host
+  // so the standalone server sees its own host.
+  const headers = {};
+  for (const [k, v] of Object.entries(event?.headers || {})) {
+    if (k.toLowerCase() === "host") continue;
+    headers[k] = v;
+  }
+  headers["host"] = `127.0.0.1:${PORT}`;
+
+  let bodyBuf = null;
+  if (event?.body != null) {
+    bodyBuf = event.isBase64Encoded
+      ? Buffer.from(event.body, "base64")
+      : Buffer.from(event.body, "utf8");
+    headers["content-length"] = String(bodyBuf.length);
+  }
+
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      {
+        host: "127.0.0.1",
+        port: PORT,
+        path: fullPath,
+        method,
+        headers,
+      },
+      (res) => {
+        const chunks = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () => {
+          const buf = Buffer.concat(chunks);
+          const ct = res.headers["content-type"] || "";
+          const isBin = BINARY_CT.test(ct);
+          // APIGW v2 wants headers as a flat string map; arrays go into
+          // a separate `cookies` field.
+          const respHeaders = {};
+          const cookies = [];
+          for (const [k, v] of Object.entries(res.headers)) {
+            if (k.toLowerCase() === "set-cookie") {
+              if (Array.isArray(v)) cookies.push(...v);
+              else if (v) cookies.push(String(v));
+              continue;
+            }
+            respHeaders[k] = Array.isArray(v) ? v.join(", ") : String(v);
+          }
+          resolve({
+            statusCode: res.statusCode || 500,
+            headers: respHeaders,
+            cookies,
+            body: isBin ? buf.toString("base64") : buf.toString("utf8"),
+            isBase64Encoded: isBin,
+          });
+        });
+        res.on("error", reject);
+      },
+    );
+    req.on("error", reject);
+    if (bodyBuf) req.write(bodyBuf);
+    req.end();
+  });
+}
 
 exports.handler = async (event, context) => {
-  // Don't wait for fire-and-forget tasks (e.g. /api/evaluate/[id]) to
-  // drain the event loop before returning the response — they continue
-  // running until the Lambda timeout (set generously in Terraform).
   context.callbackWaitsForEmptyEventLoop = false;
   try {
-    const result = await wrapped(event, context);
-    // TEMP DEBUG — bake the Node version into every response header so
-    // we can see what runtime Lambda is using from a curl response.
-    if (result && typeof result === "object") {
-      result.headers = {
-        ...(result.headers ?? {}),
-        "x-debug-node": process.version,
-        "x-debug-method": event?.requestContext?.http?.method ?? "?",
-      };
-    }
-    return result;
+    await waitUntilReady();
+    return await forward(event);
   } catch (err) {
-    // TEMP DEBUG — surface the failure so APIGW doesn't swallow it as
-    // the generic "Internal Server Error" body. Remove once the Dynamo
-    // issue is resolved.
-    console.error("[lambda] OUTER handler error", err);
+    console.error("[lambda] handler error", err);
     return {
       statusCode: 500,
-      headers: {
-        "content-type": "application/json",
-        "x-debug-node": process.version,
-        "x-debug-where": "outer-catch",
-      },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        debug: "lambda_outer_catch",
-        node: process.version,
-        name: err?.name ?? null,
+        error: "lambda_handler",
         message: err?.message ?? String(err),
-        code: err?.code ?? null,
-        stack: (err?.stack ?? "").split("\n").slice(0, 12),
+        node: process.version,
       }),
     };
   }
