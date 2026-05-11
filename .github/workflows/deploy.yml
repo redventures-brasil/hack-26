@@ -57,14 +57,11 @@ jobs:
         # Standalone emits a self-contained server at .next/standalone with
         # its own node_modules. We add our Lambda entrypoint + public/ so
         # routes like /favicon.ico still resolve when CloudFront forwards
-        # to the API GW origin. serverless-http is not imported by any Next
-        # route so the tracer misses it — copy it in manually.
+        # to the API GW origin.
         run: |
           set -euo pipefail
           cp lambda/index.cjs .next/standalone/index.cjs
           cp -R public .next/standalone/public
-          mkdir -p .next/standalone/node_modules/serverless-http
-          cp -R node_modules/serverless-http/. .next/standalone/node_modules/serverless-http/
           # Static assets are served from S3 via CloudFront — keep them
           # out of the Lambda zip to shave ~MBs.
           (cd .next/standalone && zip -qr "$GITHUB_WORKSPACE/lambda.zip" .)
