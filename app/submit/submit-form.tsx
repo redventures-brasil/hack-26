@@ -82,17 +82,45 @@ export function SubmitForm() {
   ): Promise<Uploaded | null> {
     setUploading(kind);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      form.append("kind", kind);
-      const res = await fetch("/api/upload", { method: "POST", body: form });
-      if (!res.ok) {
-        const j = (await res.json().catch(() => ({}))) as { error?: string };
-        setServerError(`upload falhou: ${j.error ?? res.status}`);
+      // Browser uploads directly to S3 via a short-lived presigned PUT
+      // URL. Bypasses API Gateway's 10 MB request limit (videos
+      // typically don't fit through Lambda). The server-side endpoint
+      // validates content-type + size and signs the URL.
+      const presignRes = await fetch("/api/upload/presign", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          kind,
+          filename: file.name,
+          contentType: file.type || "application/octet-stream",
+          size: file.size,
+        }),
+      });
+      if (!presignRes.ok) {
+        const j = (await presignRes.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        setServerError(`upload falhou: ${j.error ?? presignRes.status}`);
         return null;
       }
-      const j = (await res.json()) as { url: string; size: number };
-      return { url: j.url, name: file.name, sizeLabel: fmtSize(j.size) };
+      const { uploadUrl, publicUrl } = (await presignRes.json()) as {
+        uploadUrl: string;
+        publicUrl: string;
+      };
+
+      const putRes = await fetch(uploadUrl, {
+        method: "PUT",
+        // Content-Type must match the value used to sign the URL
+        // otherwise S3 rejects with SignatureDoesNotMatch.
+        headers: { "content-type": file.type || "application/octet-stream" },
+        body: file,
+      });
+      if (!putRes.ok) {
+        setServerError(`upload falhou: s3 ${putRes.status}`);
+        return null;
+      }
+
+      return { url: publicUrl, name: file.name, sizeLabel: fmtSize(file.size) };
     } catch (e) {
       setServerError(`upload falhou: ${(e as Error).message}`);
       return null;
