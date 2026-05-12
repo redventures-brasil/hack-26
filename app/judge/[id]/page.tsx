@@ -77,8 +77,18 @@ export default async function DrilldownPage({
   const allEvals = await getEvaluations(id);
   const evalByDim = new Map(allEvals.map((e) => [e.dimension as DimKey, e]));
 
-  const allJudgeEvals = await listJudgeEvaluations(id);
-  const allVotes = await listVotes(id);
+  // Belt-and-suspenders: judge evals are stored in a table that may not
+  // exist yet (TF apply pending). The dynamo backend already swallows
+  // ResourceNotFoundException, but wrap here too so a permission glitch
+  // or unrelated SDK error doesn't crash the whole /judge/[id] page.
+  const allJudgeEvals = await listJudgeEvaluations(id).catch((err) => {
+    console.error(`[judge ${id}] listJudgeEvaluations failed`, err);
+    return [];
+  });
+  const allVotes = await listVotes(id).catch((err) => {
+    console.error(`[judge ${id}] listVotes failed`, err);
+    return [];
+  });
   const breakdown = scoreBreakdown(allEvals, allJudgeEvals, allVotes);
 
   // Identify the logged-in judge from the cookie set on /api/judge/login,
@@ -89,7 +99,10 @@ export default async function DrilldownPage({
     ? normalizeEmail(rawJudgeEmail)
     : null;
   const myEval = judgeEmail
-    ? await getJudgeEvaluation(id, judgeEmail)
+    ? await getJudgeEvaluation(id, judgeEmail).catch((err) => {
+        console.error(`[judge ${id}] getJudgeEvaluation failed`, err);
+        return null;
+      })
     : null;
   const otherJudgesCount =
     allJudgeEvals.filter((j) => j.judgeEmail !== judgeEmail).length;
@@ -111,6 +124,8 @@ export default async function DrilldownPage({
   const shortId = id.length > 16 ? id.slice(0, 16) : id;
 
   // Compute rank among completed submissions by composite final score.
+  // Same defensive catches as above — one bad submission shouldn't take
+  // down the page.
   const allSubs = await listSubmissions();
   const ranked = (
     await Promise.all(
@@ -118,9 +133,9 @@ export default async function DrilldownPage({
         .filter((s) => s.status === "done")
         .map(async (s) => {
           const [evs, judges, votes] = await Promise.all([
-            getEvaluations(s.id),
-            listJudgeEvaluations(s.id),
-            listVotes(s.id),
+            getEvaluations(s.id).catch(() => []),
+            listJudgeEvaluations(s.id).catch(() => []),
+            listVotes(s.id).catch(() => []),
           ]);
           return { id: s.id, final: scoreBreakdown(evs, judges, votes).final };
         }),
