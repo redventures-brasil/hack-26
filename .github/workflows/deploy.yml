@@ -175,6 +175,15 @@ jobs:
             --with-decryption \
             --query 'Parameter.Value' \
             --output text)"
+          # GitHub PAT — opcional. Sem ele, fetch-repo cai pro limite
+          # anônimo de 60 req/h por IP e não consegue ler repos privados
+          # da org. Tolera-se ausência: se o SSM ainda não existe ou está
+          # vazio, o app trata como "não setado" e segue sem auth.
+          GH_TOKEN="$(aws ssm get-parameter \
+            --name /hack-26-production/github-token \
+            --with-decryption \
+            --query 'Parameter.Value' \
+            --output text 2>/dev/null || echo '')"
           ASSETS_BUCKET="${{ steps.buckets.outputs.assets }}"
           DEPLOY_BUCKET="${{ steps.buckets.outputs.deploy }}"
           # update-function-configuration replaces ALL env vars in one
@@ -193,6 +202,7 @@ jobs:
               "AWS_REGION_OVERRIDE": "sa-east-1",
               "ANTHROPIC_API_KEY": "${ANTHROPIC}",
               "JUDGE_PASSWORD": "${JUDGE_PW}",
+              "GITHUB_TOKEN": "${GH_TOKEN}",
               "PUBLIC_HOSTNAME": "hack-26.redplatform.com.br",
               "DEPLOY_BUCKET": "${DEPLOY_BUCKET}",
               "UPLOAD_BUCKET": "${ASSETS_BUCKET}",
@@ -205,7 +215,7 @@ jobs:
                 --function-name "${LAMBDA_NAME}" \
                 --environment file:///tmp/env.json \
                 --no-cli-pager > /dev/null 2>err.log; then
-              echo "env synced from SSM (judge-password len=${#JUDGE_PW}, anthropic len=${#ANTHROPIC})"
+              echo "env synced from SSM (judge-password len=${#JUDGE_PW}, anthropic len=${#ANTHROPIC}, github-token len=${#GH_TOKEN})"
               exit 0
             fi
             if grep -q "ResourceConflictException" err.log; then
