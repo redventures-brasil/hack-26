@@ -55,9 +55,15 @@ export async function fetchRepoEvidence(
 
   const baseRes = await fetch(`${GH}/repos/${owner}/${repo}`, {
     headers: ghHeaders(),
-    // 5 min cache to dedupe between dimension judges
-    next: { revalidate: 300 },
-  }).catch(() => null);
+    // no-store: respostas de GitHub mudam de fato durante o evento
+    // (repos privados ganhando scope, repos novos sendo pushed) e
+    // o Next data-cache estava segurando 404s antigos depois do PAT
+    // ser ajustado.
+    cache: "no-store",
+  }).catch((err) => {
+    console.error(`[fetchRepoEvidence] ${owner}/${repo} threw`, err);
+    return null;
+  });
 
   if (!baseRes) {
     return blank({ owner, repo, error: "falha de rede ao chamar github." });
@@ -89,7 +95,7 @@ export async function fetchRepoEvidence(
   let readme: string | null = null;
   const rmRes = await fetch(`${GH}/repos/${owner}/${repo}/readme`, {
     headers: ghHeaders(),
-    next: { revalidate: 300 },
+    cache: "no-store",
   }).catch(() => null);
   if (rmRes?.ok) {
     const j = (await rmRes.json()) as { content: string; encoding: string };
