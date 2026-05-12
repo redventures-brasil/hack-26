@@ -155,6 +155,67 @@ jobs:
           done
           echo "gave up after 10 retries"; exit 1
 
+      - name: Re-sync Lambda env from SSM
+        # Terraform bakes the SSM SecureString values into the Lambda env
+        # at apply time. If the operator updates SSM after the apply, the
+        # Lambda env stays stale — the only fix is another `terraform apply`
+        # or a manual update-function-configuration. We do the latter here
+        # so every deploy (push OR workflow_dispatch) keeps the env aligned
+        # with the live SSM values. Drift will show up in the next TF plan,
+        # which is expected.
+        run: |
+          set -euo pipefail
+          JUDGE_PW="$(aws ssm get-parameter \
+            --name /hack-26-production/judge-password \
+            --with-decryption \
+            --query 'Parameter.Value' \
+            --output text)"
+          ANTHROPIC="$(aws ssm get-parameter \
+            --name /hack-26-production/anthropic-api-key \
+            --with-decryption \
+            --query 'Parameter.Value' \
+            --output text)"
+          ASSETS_BUCKET="${{ steps.buckets.outputs.assets }}"
+          DEPLOY_BUCKET="${{ steps.buckets.outputs.deploy }}"
+          # update-function-configuration replaces ALL env vars in one
+          # shot, so list every key (we can't merge — the GHA role has
+          # no GetFunctionConfiguration permission). Source of truth is
+          # tfe_rv-rvbr-platform/.../hack_26_lambda.tf — keep aligned.
+          cat > /tmp/env.json <<EOF
+          {
+            "Variables": {
+              "NODE_ENV": "production",
+              "APP_PARAMETERS_PATH": "/hack-26-production",
+              "DYNAMO_SUBMISSIONS": "hack-26-submissions-production",
+              "DYNAMO_EVALUATIONS": "hack-26-evaluations-production",
+              "DYNAMO_POPULAR_VOTES": "hack-26-popular-votes-production",
+              "AWS_REGION_OVERRIDE": "sa-east-1",
+              "ANTHROPIC_API_KEY": "${ANTHROPIC}",
+              "JUDGE_PASSWORD": "${JUDGE_PW}",
+              "PUBLIC_HOSTNAME": "hack-26.redplatform.com.br",
+              "DEPLOY_BUCKET": "${DEPLOY_BUCKET}",
+              "UPLOAD_BUCKET": "${ASSETS_BUCKET}",
+              "UPLOAD_URL_PREFIX": "https://hack-26.redplatform.com.br/static/uploads"
+            }
+          }
+          EOF
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if aws lambda update-function-configuration \
+                --function-name "${LAMBDA_NAME}" \
+                --environment file:///tmp/env.json \
+                --no-cli-pager > /dev/null 2>err.log; then
+              echo "env synced from SSM (judge-password len=${#JUDGE_PW}, anthropic len=${#ANTHROPIC})"
+              exit 0
+            fi
+            if grep -q "ResourceConflictException" err.log; then
+              echo "update in progress, retrying in 6s..."
+              sleep 6
+              continue
+            fi
+            echo "unexpected error:"; cat err.log; exit 1
+          done
+          echo "gave up after 10 retries"; exit 1
+
       # No CloudFront invalidation step on purpose: the distribution's
       # default cache behavior uses cf_managed_caching_disabled, and the
       # only cached paths (/_next/static/* and /static/*) are immutable —
