@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ScoreMono } from "./score";
 import { StatusBadge } from "./status-badge";
@@ -118,9 +118,60 @@ function Row({
         )}
       </td>
       <td className="col-status col-status-cell">
-        {!isDone && <StatusBadge status={row.status} size="sm" />}
+        {!isDone && (
+          <div className="lb-status-cell">
+            <StatusBadge status={row.status} size="sm" />
+            {(row.status === "evaluating" || row.status === "failed") && (
+              <RerunButton id={row.id} />
+            )}
+          </div>
+        )}
       </td>
     </tr>
+  );
+}
+
+/**
+ * Re-disparada manual da pipeline de avaliação por IA. Útil quando uma
+ * submission ficou órfã em `evaluating` (o fire-and-forget no Lambda
+ * congela junto com o container quando ninguém polla `/submit/[id]`).
+ * Idempotente — clicar várias vezes só re-dispara.
+ */
+function RerunButton({ id }: { id: string }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [phase, setPhase] = useState<"idle" | "ok" | "err">("idle");
+
+  return (
+    <button
+      type="button"
+      className={`lb-rerun ${phase}`}
+      disabled={pending || phase === "ok"}
+      onClick={(e) => {
+        e.stopPropagation();
+        startTransition(async () => {
+          try {
+            const res = await fetch(`/api/evaluate/${id}`, { method: "POST" });
+            if (!res.ok) throw new Error(`http ${res.status}`);
+            setPhase("ok");
+            // Wait a beat so user sees the "ok" state, then refresh
+            // the server data — the row should flip to evaluating with
+            // a fresh timestamp.
+            window.setTimeout(() => {
+              router.refresh();
+              setPhase("idle");
+            }, 1500);
+          } catch {
+            setPhase("err");
+            window.setTimeout(() => setPhase("idle"), 2000);
+          }
+        });
+      }}
+      aria-label="forçar reavaliação"
+      title="forçar reavaliação"
+    >
+      {pending ? "…" : phase === "ok" ? "ok" : phase === "err" ? "erro" : "↻ rerun"}
+    </button>
   );
 }
 

@@ -3481,3 +3481,47 @@ a { color: inherit; }
   .rs-triad-value { font-size: 22px; }
   .rs-method { font-size: 12px; padding: 8px 12px; }
 }
+
+/* ============================================================
+   Leaderboard rerun button — destrava evals órfãos
+   ============================================================ */
+.lb-status-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.lb-rerun {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,.15);
+  background: rgba(255,255,255,.04);
+  color: var(--t-fg);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .04em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+  white-space: nowrap;
+}
+.lb-rerun:hover:not(:disabled) {
+  border-color: var(--t-accent);
+  color: var(--t-accent);
+  background: rgba(233,69,62,.08);
+}
+.lb-rerun:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+.lb-rerun.ok {
+  border-color: rgba(120,200,120,.4);
+  color: #6fd17a;
+  background: rgba(120,200,120,.10);
+}
+.lb-rerun.err {
+  border-color: rgba(255,107,107,.4);
+  color: #FF6B6B;
+  background: rgba(255,107,107,.10);
+}
