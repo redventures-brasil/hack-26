@@ -5,12 +5,13 @@ import { DimensionEvalSchema } from "./schema";
 import type { RepoEvidence } from "../evidence/fetch-repo";
 import type { SubmissionRow } from "../db/schema";
 
-// Claude Opus 4.7 is the most capable Anthropic model — better reasoning
-// in vibe/viabilidade and stronger code reading in execução. Slower and
-// pricier than Sonnet 4.6 but the run is 4 dims × 30 projects, so the
-// total bill is still small.
-export const AI_MODEL = "anthropic/claude-opus-4-7";
-const ANTHROPIC_MODEL_ID = "claude-opus-4-7";
+// Sonnet 4.6 dá a melhor relação capacidade/latência aqui: também é
+// multimodal (consome screenshots), tem vision boa o suficiente pra
+// vibe/viabilidade, e fecha as 4 dims em ~30-60s. Opus 4.7 testado e
+// rejeitado — estourava o timeout de 300s do Lambda em projetos com
+// imagens anexadas.
+export const AI_MODEL = "anthropic/claude-sonnet-4-6";
+const ANTHROPIC_MODEL_ID = "claude-sonnet-4-6";
 
 // Cap how many screenshots we attach as image inputs so we stay well
 // under Anthropic's per-request image limit and bill predictably.
