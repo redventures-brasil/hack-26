@@ -234,6 +234,7 @@ function IntroSlide() {
           width={2000}
           height={599}
           priority
+          unoptimized
           className="rs-logo-img"
         />
       </h1>

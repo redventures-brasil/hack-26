@@ -20,6 +20,7 @@ export default function LandingPage() {
                 width={2000}
                 height={599}
                 priority
+                unoptimized
                 className="land-title-img"
               />
             </h1>

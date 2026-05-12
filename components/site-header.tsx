@@ -30,6 +30,7 @@ export function SiteHeader({ variant = "public", current }: Props) {
             width={2000}
             height={599}
             priority
+            unoptimized
             className="logo-img"
           />
         </Link>
