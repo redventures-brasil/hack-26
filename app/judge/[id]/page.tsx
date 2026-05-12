@@ -295,18 +295,18 @@ export default async function DrilldownPage({
                   {parseJsonArray(sub.screenshotUrls)
                     .slice(0, 4)
                     .map((url, i) => (
-                      <div
+                      <a
                         key={url}
                         className={`dd-shot v${(i % 4) + 1}`}
-                        style={
-                          url.startsWith("/uploads")
-                            ? {
-                                backgroundImage: `url(${url})`,
-                                backgroundSize: "cover",
-                                backgroundPosition: "center",
-                              }
-                            : undefined
-                        }
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          backgroundImage: `url(${url})`,
+                          backgroundSize: "cover",
+                          backgroundPosition: "center",
+                        }}
+                        aria-label={`screenshot ${i + 1}`}
                       />
                     ))}
                 </div>
@@ -316,9 +316,17 @@ export default async function DrilldownPage({
             {sub.videoUrl && (
               <section className="dd-section">
                 <div className="t-eyebrow">pitch</div>
-                <div className="dd-video">
-                  <div className="vid-play">▶</div>
-                </div>
+                <video
+                  className="dd-video"
+                  controls
+                  preload="metadata"
+                  src={sub.videoUrl}
+                >
+                  Seu navegador não suporta vídeo embedded.{" "}
+                  <a href={sub.videoUrl} target="_blank" rel="noreferrer">
+                    Abrir vídeo
+                  </a>
+                </video>
               </section>
             )}
 

@@ -1234,6 +1234,11 @@ a { color: inherit; }
   border: 1px solid var(--t-line-strong);
   cursor: zoom-in;
   transition: transform .25s var(--ease-out);
+  display: block;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  text-decoration: none;
 }
 .dd-shot:hover { transform: scale(1.02); }
 .dd-shot.v1 { background: linear-gradient(135deg, #C8362F 0%, #2B254D 100%); }
@@ -1250,28 +1255,11 @@ a { color: inherit; }
 }
 .dd-video {
   margin-top: 12px;
+  width: 100%;
   aspect-ratio: 16/9;
-  position: relative;
-  background:
-    radial-gradient(circle at 30% 40%, rgba(255,255,255,.08) 0 14px, transparent 16px),
-    linear-gradient(135deg, rgba(233,69,62,.16) 0%, rgba(43,37,77,.6) 60%, rgba(24,20,52,.8) 100%);
+  background: #000;
   border: 1px solid var(--t-line-strong);
-  display: flex; align-items: center; justify-content: center;
-}
-.dd-video .vid-play {
-  width: 56px; height: 56px;
-  border-radius: 50%;
-  border: 1.5px solid var(--t-fg);
-  display: flex; align-items: center; justify-content: center;
-  color: var(--t-fg);
-  font-size: 18px;
-  padding-left: 5px;
-}
-.dd-video .vid-meta {
-  position: absolute;
-  top: 8px; right: 12px;
-  font-size: 11px;
-  color: var(--t-fg-2);
+  display: block;
 }
 .dd-vid-transcript {
   position: absolute;
