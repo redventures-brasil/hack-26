@@ -16,6 +16,14 @@ export type WinnerRow = {
     execucao: number | null;
     viabilidade: number | null;
   };
+  /** Composite breakdown — the final `total` is 0.25·IA + 0.50·Júri + 0.25·Popular. */
+  breakdown: {
+    ai: number | null;
+    juri: number | null;
+    popular: number | null;
+    juriCount: number;
+    popularCount: number;
+  };
 };
 
 type RankColor = {
@@ -241,6 +249,9 @@ function IntroSlide() {
       <p className="rs-tagline">
         E os <em>vencedores</em> da edição vão pra…
       </p>
+      <p className="rs-method">
+        nota final = <strong>25%</strong> IA + <strong>50%</strong> Júri humano + <strong>25%</strong> Júri popular
+      </p>
       <div className="rs-intro-cue">
         <span className="rs-key">espaço</span>
         <span>pra abrir os envelopes</span>
@@ -281,6 +292,7 @@ function RevealSlide({ rank, row }: { rank: 1 | 2 | 3; row: WinnerRow }) {
             <CountUp value={row.total} />
             <span className="rs-score-of">/ 10</span>
           </div>
+          <BreakdownTriad row={row} />
           <DimensionBar row={row} />
         </div>
       </div>
@@ -295,7 +307,9 @@ function PodiumSlide({
 }) {
   return (
     <div className="rs-slide rs-podium">
-      <div className="t-eyebrow">edição 2026 · pódio final</div>
+      <div className="t-eyebrow">
+        edição 2026 · pódio final · IA + Júri + Popular
+      </div>
       <h2 className="rs-podium-title">
         Os <em>três</em> da casa.
       </h2>
@@ -371,6 +385,66 @@ function CountUp({ value }: { value: number }) {
     return () => cancelAnimationFrame(raf);
   }, [value]);
   return <span className="t-mono-num rs-score-val">{shown.toFixed(2)}</span>;
+}
+
+/**
+ * The three signals that compose the final score, with their weights.
+ * Shows the partial values so the audience understands *how* the rank
+ * was decided — not just the magical 8.7 / 10.
+ */
+function BreakdownTriad({ row }: { row: WinnerRow }) {
+  const { ai, juri, popular, juriCount, popularCount } = row.breakdown;
+  const items: Array<{
+    key: string;
+    label: string;
+    value: number | null;
+    weight: string;
+    meta: string;
+  }> = [
+    {
+      key: "ai",
+      label: "IA",
+      value: ai,
+      weight: "25%",
+      meta: "média 4 dimensões",
+    },
+    {
+      key: "juri",
+      label: "Júri",
+      value: juri,
+      weight: "50%",
+      meta:
+        juriCount === 0
+          ? "sem voto"
+          : `${juriCount} juiz${juriCount === 1 ? "" : "es"}`,
+    },
+    {
+      key: "popular",
+      label: "Popular",
+      value: popular,
+      weight: "25%",
+      meta:
+        popularCount === 0
+          ? "sem voto"
+          : `${popularCount} voto${popularCount === 1 ? "" : "s"}`,
+    },
+  ];
+  return (
+    <div className="rs-triad" aria-label="Composição da nota final">
+      {items.map((it) => (
+        <div className="rs-triad-item" key={it.key}>
+          <div className="rs-triad-head">
+            <span className="rs-triad-label">{it.label}</span>
+            <span className="rs-triad-weight">{it.weight}</span>
+          </div>
+          <div className="rs-triad-value t-mono-num">
+            {it.value == null ? "—" : it.value.toFixed(1)}
+          </div>
+          <div className="rs-triad-meta">{it.meta}</div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function DimensionBar({ row }: { row: WinnerRow }) {

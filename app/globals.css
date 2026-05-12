@@ -3405,3 +3405,79 @@ a { color: inherit; }
   .je-mine { font-size: 20px; }
   .dd-breakdown { grid-template-columns: 1fr 1fr; }
 }
+
+/* ============================================================
+   Resultados — composição da nota (IA / Júri / Popular)
+   ============================================================ */
+.rs-method {
+  margin: 18px auto 0;
+  padding: 10px 16px;
+  max-width: 640px;
+  font-size: 14px;
+  color: rgba(255,255,255,.78);
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  letter-spacing: .01em;
+}
+.rs-method strong {
+  color: var(--t-accent, #E9453E);
+  font-weight: 700;
+}
+
+.rs-triad {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0 16px;
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(0,0,0,.18);
+  border: 1px solid rgba(255,255,255,.08);
+}
+.rs-triad-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+.rs-triad-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.rs-triad-label {
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.55);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+.rs-triad-weight {
+  font-size: 11px;
+  color: var(--rank-fg, var(--t-accent, #E9453E));
+  font-weight: 700;
+  font-family: var(--font-mono);
+  letter-spacing: .04em;
+}
+.rs-triad-value {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+}
+.rs-triad-meta {
+  font-size: 11px;
+  color: rgba(255,255,255,.40);
+  font-family: var(--font-mono);
+}
+
+@media (max-width: 760px) {
+  .rs-triad { grid-template-columns: 1fr; }
+  .rs-triad-item { flex-direction: row; align-items: baseline; gap: 12px; }
+  .rs-triad-value { font-size: 22px; }
+  .rs-method { font-size: 12px; padding: 8px 12px; }
+}

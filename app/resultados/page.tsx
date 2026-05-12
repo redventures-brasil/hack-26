@@ -49,6 +49,13 @@ export default async function ResultadosPage() {
               execucao: byDim("execucao"),
               viabilidade: byDim("viabilidade"),
             },
+            breakdown: {
+              ai: breakdown.ai,
+              juri: breakdown.juri,
+              popular: breakdown.popular,
+              juriCount: breakdown.juriCount,
+              popularCount: breakdown.popularCount,
+            },
           };
         }),
     )
