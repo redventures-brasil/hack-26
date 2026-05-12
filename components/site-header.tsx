@@ -8,7 +8,7 @@ type Variant = "public" | "judge";
 
 type Props = {
   variant?: Variant;
-  current?: "submit" | "votar" | "avaliacao" | "como-funciona" | "guia" | "ranking";
+  current?: "submit" | "votar" | "avaliacao" | "como-funciona" | "grupos" | "guia" | "ranking";
 };
 
 export function SiteHeader({ variant = "public", current }: Props) {
@@ -48,6 +48,12 @@ export function SiteHeader({ variant = "public", current }: Props) {
             className={current === "como-funciona" ? "active" : ""}
           >
             Como funciona
+          </Link>
+          <Link
+            href="/grupos"
+            className={current === "grupos" ? "active" : ""}
+          >
+            Grupos
           </Link>
           <Link href="/submit" className={current === "submit" ? "active" : ""}>
             Submeter
