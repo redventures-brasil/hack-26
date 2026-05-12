@@ -18,6 +18,7 @@ export default function JudgeLoginPage() {
               width={2000}
               height={599}
               priority
+              unoptimized
               className="login-logo-img"
             />
             <span className="t-eyebrow login-logo-tag">painel privado</span>
