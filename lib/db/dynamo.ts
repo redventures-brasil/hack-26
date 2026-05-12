@@ -311,11 +311,15 @@ function toJudgeEvaluation(it: JudgeEvalItem): JudgeEvaluationRow {
 
 // Treat "table doesn't exist yet" (env points to a future TF apply) as
 // "no data" so the UI and composite score gracefully drop the júri
-// component until the TF PR lands.
+// component until the TF PR lands. AWS SDK v3 surfaces this as
+// ResourceNotFoundException via .name; some wrappers also expose it via
+// __type / message. Be liberal here — worst case we silently swallow a
+// real error, but the alternative (500 on the whole /judge page) is worse.
 function isMissingTable(err: unknown): boolean {
   if (!err || typeof err !== "object") return false;
-  const name = (err as { name?: string }).name;
-  return name === "ResourceNotFoundException";
+  const e = err as { name?: string; __type?: string; message?: string };
+  const tokens = `${e.name ?? ""}|${e.__type ?? ""}|${e.message ?? ""}`;
+  return /ResourceNotFoundException|Requested resource not found/i.test(tokens);
 }
 
 export async function listJudgeEvaluations(
