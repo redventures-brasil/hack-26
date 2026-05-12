@@ -86,6 +86,13 @@ function forward(event) {
   }
   headers["host"] = `127.0.0.1:${PORT}`;
 
+  // APIGW v2 splits request cookies into a separate `cookies` array
+  // instead of folding them into the Cookie header. Re-assemble so
+  // Next's middleware/route handlers see them via req.cookies.
+  if (Array.isArray(event?.cookies) && event.cookies.length > 0) {
+    headers["cookie"] = event.cookies.join("; ");
+  }
+
   let bodyBuf = null;
   if (event?.body != null) {
     bodyBuf = event.isBase64Encoded
