@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import {
   getDeviceId,
@@ -208,6 +209,7 @@ function VoteSlideshow({
   const SUMMARY = teams.length;
   const MAX = SUMMARY;
   const [idx, setIdx] = useState(0);
+  const router = useRouter();
 
   const go = useCallback(
     (next: number) => {
@@ -315,8 +317,7 @@ function VoteSlideshow({
         <button
           type="button"
           className="jpv-cta"
-          onClick={() => go(idx + 1)}
-          disabled={idx === MAX}
+          onClick={() => (idx === MAX ? router.push("/") : go(idx + 1))}
         >
           {idx < SUMMARY - 1
             ? "Próximo"
