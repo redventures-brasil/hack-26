@@ -52,6 +52,11 @@ type Backend = {
     viabilidade: number;
     notes: string | null;
   }): Promise<void>;
+  deleteSubmissionCascade(id: string): Promise<{
+    evaluations: number;
+    judgeEvaluations: number;
+    votes: number;
+  }>;
 };
 
 let backendPromise: Promise<Backend> | null = null;
@@ -160,6 +165,12 @@ export async function upsertJudgeEvaluation(v: {
   notes: string | null;
 }): Promise<void> {
   return (await loadBackend()).upsertJudgeEvaluation(v);
+}
+
+export async function deleteSubmissionCascade(
+  id: string,
+): Promise<{ evaluations: number; judgeEvaluations: number; votes: number }> {
+  return (await loadBackend()).deleteSubmissionCascade(id);
 }
 
 /* ----- helpers (backend-agnostic) --------------------------- */

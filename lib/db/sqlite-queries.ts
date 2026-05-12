@@ -180,6 +180,32 @@ export async function getJudgeEvaluation(
   );
 }
 
+export async function deleteSubmissionCascade(
+  id: string,
+): Promise<{ evaluations: number; judgeEvaluations: number; votes: number }> {
+  // FOREIGN KEY ... ON DELETE CASCADE in CREATE TABLE handles eval/judge/votes.
+  // Counts are computed before the delete for the response.
+  const counts = {
+    evaluations: db
+      .select()
+      .from(schema.evaluations)
+      .where(eq(schema.evaluations.submissionId, id))
+      .all().length,
+    judgeEvaluations: db
+      .select()
+      .from(schema.judgeEvaluations)
+      .where(eq(schema.judgeEvaluations.submissionId, id))
+      .all().length,
+    votes: db
+      .select()
+      .from(schema.popularVotes)
+      .where(eq(schema.popularVotes.submissionId, id))
+      .all().length,
+  };
+  db.delete(schema.submissions).where(eq(schema.submissions.id, id)).run();
+  return counts;
+}
+
 export async function upsertJudgeEvaluation(v: {
   submissionId: string;
   judgeEmail: string;

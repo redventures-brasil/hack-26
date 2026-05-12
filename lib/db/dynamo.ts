@@ -1,5 +1,6 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
+  DeleteCommand,
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
@@ -442,4 +443,114 @@ export async function upsertVote(v: {
   await client().send(
     new PutCommand({ TableName: TABLES.popularVotes, Item: item }),
   );
+}
+
+/* ------- cascading delete (admin) --------------------------------- */
+
+export type DeleteCascadeResult = {
+  evaluations: number;
+  judgeEvaluations: number;
+  votes: number;
+};
+
+/**
+ * Apaga uma submission e todas as linhas filhas em evaluations,
+ * judge_evaluations e popular_votes. Dynamo não cascateia foreign
+ * keys, então fazemos query + delete em loop pra cada tabela.
+ * Idempotente — chave inexistente é no-op.
+ */
+export async function deleteSubmissionCascade(
+  id: string,
+): Promise<DeleteCascadeResult> {
+  const res: DeleteCascadeResult = {
+    evaluations: 0,
+    judgeEvaluations: 0,
+    votes: 0,
+  };
+
+  // submissions
+  await client().send(
+    new DeleteCommand({ TableName: TABLES.submissions, Key: { id } }),
+  );
+
+  // evaluations (hash=submission_id, range=dimension)
+  const evalsOut = await client().send(
+    new QueryCommand({
+      TableName: TABLES.evaluations,
+      KeyConditionExpression: "submission_id = :sid",
+      ExpressionAttributeValues: { ":sid": id },
+      ProjectionExpression: "submission_id, #d",
+      ExpressionAttributeNames: { "#d": "dimension" },
+    }),
+  );
+  for (const item of (evalsOut.Items ?? []) as Array<{
+    submission_id: string;
+    dimension: string;
+  }>) {
+    await client().send(
+      new DeleteCommand({
+        TableName: TABLES.evaluations,
+        Key: {
+          submission_id: item.submission_id,
+          dimension: item.dimension,
+        },
+      }),
+    );
+    res.evaluations++;
+  }
+
+  // judge_evaluations (hash=submission_id, range=judge_email)
+  if (TABLES.judgeEvaluations) {
+    try {
+      const judgesOut = await client().send(
+        new QueryCommand({
+          TableName: TABLES.judgeEvaluations,
+          KeyConditionExpression: "submission_id = :sid",
+          ExpressionAttributeValues: { ":sid": id },
+          ProjectionExpression: "submission_id, judge_email",
+        }),
+      );
+      for (const item of (judgesOut.Items ?? []) as Array<{
+        submission_id: string;
+        judge_email: string;
+      }>) {
+        await client().send(
+          new DeleteCommand({
+            TableName: TABLES.judgeEvaluations,
+            Key: {
+              submission_id: item.submission_id,
+              judge_email: item.judge_email,
+            },
+          }),
+        );
+        res.judgeEvaluations++;
+      }
+    } catch (err) {
+      if (!isMissingTable(err)) throw err;
+    }
+  }
+
+  // popular_votes (hash=submission_id, range=device_id)
+  const votesOut = await client().send(
+    new QueryCommand({
+      TableName: TABLES.popularVotes,
+      KeyConditionExpression: "submission_id = :sid",
+      ExpressionAttributeValues: { ":sid": id },
+      ProjectionExpression: "submission_id, device_id",
+    }),
+  );
+  for (const item of (votesOut.Items ?? []) as Array<{
+    submission_id: string;
+    device_id: string;
+  }>) {
+    await client().send(
+      new DeleteCommand({
+        TableName: TABLES.popularVotes,
+        Key: { submission_id: item.submission_id, device_id: item.device_id },
+      }),
+    );
+    res.votes++;
+  }
+
+  return res;
 }
