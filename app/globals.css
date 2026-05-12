@@ -2745,29 +2745,12 @@ a { color: inherit; }
   gap: 14px;
 }
 .gr-member { display: grid; gap: 2px; }
-.gr-member-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
 .gr-member-name {
   font-family: var(--font-display);
   font-size: 18px;
   line-height: 1.15;
   color: var(--t-fg);
   letter-spacing: -.005em;
-}
-.gr-focal-chip {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(255,201,64,.16);
-  color: var(--t-high);
-  border: 1px solid rgba(255,201,64,.35);
 }
 .gr-member-email {
   font-family: var(--font-mono);
