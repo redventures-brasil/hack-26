@@ -28,9 +28,8 @@ export default function LandingPage() {
               Vibethon. 3h30. IA julga, humanos decidem.
             </p>
             <p className="land-sub">
-              Trinta times. Quatro dimensões — vibe, originalidade, execução,
-              viabilidade. Avaliação assistida por modelo. Júri humano dá o
-              ranking final.
+              Quatro dimensões — vibe, originalidade, execução, viabilidade.
+              Avaliação assistida por modelo. Júri humano dá o ranking final.
             </p>
             <div className="land-actions">
               <Link href="/submit" className="ed-btn primary">
