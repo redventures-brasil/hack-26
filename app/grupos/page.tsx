@@ -23,6 +23,7 @@ const GROUPS: Group[] = [
       { email: "gabriel.zuza@r2ventures.com.br" },
       { email: "alexandre.tsunoda@r2ventures.com.br" },
       { email: "bruna.guimaraes@r2ventures.com.br" },
+      { email: "murilo.sopi@r2ventures.com.br" },
     ],
   },
   {
@@ -47,6 +48,7 @@ const GROUPS: Group[] = [
       { email: "ana.marques@r2ventures.com.br" },
       { email: "ryan.alves@r2ventures.com.br" },
       { email: "ricardo.barreto@r2ventures.com.br" },
+      { email: "pedro.dalinghaus@r2ventures.com.br" },
     ],
   },
   {
@@ -63,6 +65,14 @@ const GROUPS: Group[] = [
       { email: "michel.freitas@r2ventures.com.br" },
       { email: "julia.menezes@r2ventures.com.br" },
       { email: "rafael.dias@r2ventures.com.br" },
+    ],
+  },
+  {
+    num: 8,
+    members: [
+      { email: "gabriel.morth@r2ventures.com.br" },
+      { email: "thais.varela@r2ventures.com.br" },
+      { email: "renato.bongiovanni@r2ventures.com.br" },
     ],
   },
 ];
@@ -88,7 +98,7 @@ export default function GruposPage() {
               Os <em>grupos</em>.
             </h1>
             <p className="jg-lede">
-              {GROUPS.length} times, {totalPeople} pessoas, três por grupo.
+              {GROUPS.length} times, {totalPeople} pessoas no total.
             </p>
             <div className="cf-stat-strip">
               <div className="cf-stat">
@@ -104,8 +114,8 @@ export default function GruposPage() {
                 <span className="cf-stat-label">pessoas</span>
               </div>
               <div className="cf-stat">
-                <span className="cf-stat-val t-mono-num">03</span>
-                <span className="cf-stat-label">por grupo</span>
+                <span className="cf-stat-val t-mono-num">04</span>
+                <span className="cf-stat-label">dimensões</span>
               </div>
               <div className="cf-stat">
                 <span className="cf-stat-val t-mono-num">3h30</span>
