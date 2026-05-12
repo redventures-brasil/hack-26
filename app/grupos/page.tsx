@@ -75,6 +75,15 @@ const GROUPS: Group[] = [
       { email: "renato.bongiovanni@r2ventures.com.br" },
     ],
   },
+  {
+    num: 9,
+    members: [
+      { email: "henrique.misumi@r2ventures.com.br" },
+      { email: "arthur.dafonseca@r2ventures.com.br" },
+      { email: "guilherme.bridi@r2ventures.com.br" },
+      { email: "tie.scuoteguazza@r2ventures.com.br" },
+    ],
+  },
 ];
 
 function humanizeName(email: string): string {
