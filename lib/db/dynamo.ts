@@ -309,24 +309,38 @@ function toJudgeEvaluation(it: JudgeEvalItem): JudgeEvaluationRow {
   };
 }
 
+// Treat "table doesn't exist yet" (env points to a future TF apply) as
+// "no data" so the UI and composite score gracefully drop the júri
+// component until the TF PR lands.
+function isMissingTable(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const name = (err as { name?: string }).name;
+  return name === "ResourceNotFoundException";
+}
+
 export async function listJudgeEvaluations(
   submissionId?: string,
 ): Promise<JudgeEvaluationRow[]> {
   if (!TABLES.judgeEvaluations) return [];
-  if (submissionId) {
+  try {
+    if (submissionId) {
+      const out = await client().send(
+        new QueryCommand({
+          TableName: TABLES.judgeEvaluations,
+          KeyConditionExpression: "submission_id = :sid",
+          ExpressionAttributeValues: { ":sid": submissionId },
+        }),
+      );
+      return ((out.Items ?? []) as JudgeEvalItem[]).map(toJudgeEvaluation);
+    }
     const out = await client().send(
-      new QueryCommand({
-        TableName: TABLES.judgeEvaluations,
-        KeyConditionExpression: "submission_id = :sid",
-        ExpressionAttributeValues: { ":sid": submissionId },
-      }),
+      new ScanCommand({ TableName: TABLES.judgeEvaluations }),
     );
     return ((out.Items ?? []) as JudgeEvalItem[]).map(toJudgeEvaluation);
+  } catch (err) {
+    if (isMissingTable(err)) return [];
+    throw err;
   }
-  const out = await client().send(
-    new ScanCommand({ TableName: TABLES.judgeEvaluations }),
-  );
-  return ((out.Items ?? []) as JudgeEvalItem[]).map(toJudgeEvaluation);
 }
 
 export async function getJudgeEvaluation(
@@ -334,13 +348,18 @@ export async function getJudgeEvaluation(
   judgeEmail: string,
 ): Promise<JudgeEvaluationRow | null> {
   if (!TABLES.judgeEvaluations) return null;
-  const out = await client().send(
-    new GetCommand({
-      TableName: TABLES.judgeEvaluations,
-      Key: { submission_id: submissionId, judge_email: judgeEmail },
-    }),
-  );
-  return out.Item ? toJudgeEvaluation(out.Item as JudgeEvalItem) : null;
+  try {
+    const out = await client().send(
+      new GetCommand({
+        TableName: TABLES.judgeEvaluations,
+        Key: { submission_id: submissionId, judge_email: judgeEmail },
+      }),
+    );
+    return out.Item ? toJudgeEvaluation(out.Item as JudgeEvalItem) : null;
+  } catch (err) {
+    if (isMissingTable(err)) return null;
+    throw err;
+  }
 }
 
 export async function upsertJudgeEvaluation(v: {
