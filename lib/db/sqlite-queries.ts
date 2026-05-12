@@ -2,6 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db, schema } from "./client";
 import type {
   EvaluationRow,
+  JudgeEvaluationRow,
   PopularVoteRow,
   SubmissionRow,
 } from "./schema";
@@ -140,6 +141,67 @@ export async function upsertVote(v: {
         stars: v.stars,
         eventCode: v.eventCode,
         email: v.email,
+        updatedAt: new Date(),
+      },
+    })
+    .run();
+}
+
+/* ----- judge evaluations ----------------------------------- */
+
+export async function listJudgeEvaluations(
+  submissionId?: string,
+): Promise<JudgeEvaluationRow[]> {
+  if (submissionId) {
+    return db
+      .select()
+      .from(schema.judgeEvaluations)
+      .where(eq(schema.judgeEvaluations.submissionId, submissionId))
+      .all();
+  }
+  return db.select().from(schema.judgeEvaluations).all();
+}
+
+export async function getJudgeEvaluation(
+  submissionId: string,
+  judgeEmail: string,
+): Promise<JudgeEvaluationRow | null> {
+  return (
+    db
+      .select()
+      .from(schema.judgeEvaluations)
+      .where(
+        and(
+          eq(schema.judgeEvaluations.submissionId, submissionId),
+          eq(schema.judgeEvaluations.judgeEmail, judgeEmail),
+        ),
+      )
+      .get() ?? null
+  );
+}
+
+export async function upsertJudgeEvaluation(v: {
+  submissionId: string;
+  judgeEmail: string;
+  vibe: number;
+  originalidade: number;
+  execucao: number;
+  viabilidade: number;
+  notes: string | null;
+}): Promise<void> {
+  db.insert(schema.judgeEvaluations)
+    .values(v)
+    .onConflictDoUpdate({
+      target: [
+        schema.judgeEvaluations.submissionId,
+        schema.judgeEvaluations.judgeEmail,
+      ],
+      set: {
+        vibe: v.vibe,
+        originalidade: v.originalidade,
+        execucao: v.execucao,
+        viabilidade: v.viabilidade,
+        notes: v.notes,
         updatedAt: new Date(),
       },
     })

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -23,7 +24,14 @@ export function SiteHeader({ variant = "public", current }: Props) {
     <header className="site-header">
       <div className="hstack gap-4">
         <Link href="/" className="logo" style={{ textDecoration: "none" }}>
-          HACK<span className="dot">·</span>26
+          <Image
+            src="/hack26-logo.webp"
+            alt="HACK-26"
+            width={2000}
+            height={599}
+            priority
+            className="logo-img"
+          />
         </Link>
         {variant === "judge" && (
           <span className="t-eyebrow" style={{ marginLeft: 16 }}>

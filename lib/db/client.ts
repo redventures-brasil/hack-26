@@ -80,6 +80,20 @@ function ensureTables(d: ReturnType<typeof drizzle<typeof schema>>) {
     )`,
     `CREATE UNIQUE INDEX IF NOT EXISTS popular_votes_device_submission_idx
       ON popular_votes (device_id, submission_id)`,
+    `CREATE TABLE IF NOT EXISTS judge_evaluations (
+      submission_id TEXT NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+      judge_email TEXT NOT NULL,
+      vibe REAL NOT NULL,
+      originalidade REAL NOT NULL,
+      execucao REAL NOT NULL,
+      viabilidade REAL NOT NULL,
+      notes TEXT,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+      PRIMARY KEY (submission_id, judge_email)
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS judge_evaluations_submission_judge_idx
+      ON judge_evaluations (submission_id, judge_email)`,
   ];
   for (const s of stmts) {
     d.$client.exec(s);

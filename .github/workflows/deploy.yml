@@ -189,6 +189,7 @@ jobs:
               "DYNAMO_SUBMISSIONS": "hack-26-submissions-production",
               "DYNAMO_EVALUATIONS": "hack-26-evaluations-production",
               "DYNAMO_POPULAR_VOTES": "hack-26-popular-votes-production",
+              "DYNAMO_JUDGE_EVALUATIONS": "hack-26-judge-evaluations-production",
               "AWS_REGION_OVERRIDE": "sa-east-1",
               "ANTHROPIC_API_KEY": "${ANTHROPIC}",
               "JUDGE_PASSWORD": "${JUDGE_PW}",

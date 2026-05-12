@@ -124,7 +124,6 @@ export function JuriPopularClient({
                 setEmailInput(e.target.value);
                 if (emailError) setEmailError(null);
               }}
-              placeholder="voce@exemplo.com"
               autoFocus
               autoComplete="email"
               inputMode="email"

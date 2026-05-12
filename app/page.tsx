@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { SiteHeader } from "@/components/site-header";
 
@@ -13,7 +14,14 @@ export default function LandingPage() {
               R2 Ventures · 12 mai 2026 · 13:30–17:00
             </div>
             <h1 className="land-title">
-              HACK<span className="line-2">·26</span>
+              <Image
+                src="/hack26-logo.webp"
+                alt="HACK-26"
+                width={2000}
+                height={599}
+                priority
+                className="land-title-img"
+              />
             </h1>
             <p className="land-tagline">
               Vibethon. 3h30. IA julga, humanos decidem.
@@ -48,7 +56,7 @@ export default function LandingPage() {
 
         <div className="land-foot">
           <div className="muted t-small">
-            R2 Ventures · São Paulo · ola@hack26.r2.ventures
+            R2 Ventures · São Paulo
           </div>
         </div>
       </div>

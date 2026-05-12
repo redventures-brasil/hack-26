@@ -1,4 +1,10 @@
-import { listSubmissions, getEvaluations, avgScore } from "@/lib/db/queries";
+import {
+  listSubmissions,
+  getEvaluations,
+  listJudgeEvaluations,
+  listVotes,
+} from "@/lib/db/queries";
+import { scoreBreakdown } from "@/lib/score";
 import { ResultadosClient, type WinnerRow } from "./client";
 
 export const dynamic = "force-dynamic";
@@ -16,9 +22,13 @@ export default async function ResultadosPage() {
       submissions
         .filter((s) => s.status === "done")
         .map(async (s) => {
-          const evs = await getEvaluations(s.id);
-          const total = avgScore(evs);
-          if (total == null) return null;
+          const [evs, judges, votes] = await Promise.all([
+            getEvaluations(s.id),
+            listJudgeEvaluations(s.id),
+            listVotes(s.id),
+          ]);
+          const breakdown = scoreBreakdown(evs, judges, votes);
+          if (breakdown.final == null) return null;
           const byDim = (d: string): number | null => {
             const found = evs.find((e) => e.dimension === d);
             return found ? found.score : null;
@@ -28,7 +38,11 @@ export default async function ResultadosPage() {
             projectName: s.projectName,
             teamName: s.teamName,
             tagline: s.tagline ?? "",
-            total,
+            // Composite score (IA 25% + Júri 50% + Popular 25%) is what
+            // drives the ranking. The per-dim breakdown shown in the
+            // slideshow stays AI-only since judges give a single score
+            // per dim, not per evidence trail.
+            total: breakdown.final,
             scores: {
               vibe: byDim("vibe"),
               originalidade: byDim("originalidade"),

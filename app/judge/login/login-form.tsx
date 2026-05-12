@@ -88,7 +88,6 @@ export function LoginForm() {
             setEmail(e.target.value);
             if (error) setError(null);
           }}
-          placeholder="voce@exemplo.com"
           autoComplete="email"
           inputMode="email"
           spellCheck={false}

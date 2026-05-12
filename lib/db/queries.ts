@@ -1,5 +1,6 @@
 import type {
   EvaluationRow,
+  JudgeEvaluationRow,
   PopularVoteRow,
   SubmissionRow,
 } from "./schema";
@@ -36,6 +37,20 @@ type Backend = {
     stars: number;
     eventCode: string | null;
     email: string | null;
+  }): Promise<void>;
+  listJudgeEvaluations(submissionId?: string): Promise<JudgeEvaluationRow[]>;
+  getJudgeEvaluation(
+    submissionId: string,
+    judgeEmail: string,
+  ): Promise<JudgeEvaluationRow | null>;
+  upsertJudgeEvaluation(v: {
+    submissionId: string;
+    judgeEmail: string;
+    vibe: number;
+    originalidade: number;
+    execucao: number;
+    viabilidade: number;
+    notes: string | null;
   }): Promise<void>;
 };
 
@@ -118,6 +133,33 @@ export async function upsertVote(v: {
   email: string | null;
 }): Promise<void> {
   return (await loadBackend()).upsertVote(v);
+}
+
+/* ----- judge evaluations ------------------------------------ */
+
+export async function listJudgeEvaluations(
+  submissionId?: string,
+): Promise<JudgeEvaluationRow[]> {
+  return (await loadBackend()).listJudgeEvaluations(submissionId);
+}
+
+export async function getJudgeEvaluation(
+  submissionId: string,
+  judgeEmail: string,
+): Promise<JudgeEvaluationRow | null> {
+  return (await loadBackend()).getJudgeEvaluation(submissionId, judgeEmail);
+}
+
+export async function upsertJudgeEvaluation(v: {
+  submissionId: string;
+  judgeEmail: string;
+  vibe: number;
+  originalidade: number;
+  execucao: number;
+  viabilidade: number;
+  notes: string | null;
+}): Promise<void> {
+  return (await loadBackend()).upsertJudgeEvaluation(v);
 }
 
 /* ----- helpers (backend-agnostic) --------------------------- */

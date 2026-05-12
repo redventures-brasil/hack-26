@@ -1,15 +1,21 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
 import { SiteHeader } from "@/components/site-header";
 import { ScoreNumber } from "@/components/score";
 import { ScoreCard } from "@/components/score-card";
+import { JudgeScoreInput } from "@/components/judge-score-input";
 import {
-  avgScore,
   getEvaluations,
+  getJudgeEvaluation,
   getSubmission,
+  listJudgeEvaluations,
   listSubmissions,
+  listVotes,
   parseJsonArray,
 } from "@/lib/db/queries";
+import { JUDGE_EMAIL_COOKIE, isValidEmail, normalizeEmail } from "@/lib/auth";
+import { scoreBreakdown } from "@/lib/score";
 import { PipelineFailureView } from "./failure-view";
 import { ReevaluateControls } from "./reevaluate-controls";
 
@@ -70,7 +76,27 @@ export default async function DrilldownPage({
 
   const allEvals = await getEvaluations(id);
   const evalByDim = new Map(allEvals.map((e) => [e.dimension as DimKey, e]));
-  const total = avgScore(allEvals);
+
+  const allJudgeEvals = await listJudgeEvaluations(id);
+  const allVotes = await listVotes(id);
+  const breakdown = scoreBreakdown(allEvals, allJudgeEvals, allVotes);
+
+  // Identify the logged-in judge from the cookie set on /api/judge/login,
+  // and load their existing evaluation (if any) for prefill.
+  const jar = await cookies();
+  const rawJudgeEmail = jar.get(JUDGE_EMAIL_COOKIE)?.value ?? "";
+  const judgeEmail = isValidEmail(rawJudgeEmail)
+    ? normalizeEmail(rawJudgeEmail)
+    : null;
+  const myEval = judgeEmail
+    ? await getJudgeEvaluation(id, judgeEmail)
+    : null;
+  const otherJudgesCount =
+    allJudgeEvals.filter((j) => j.judgeEmail !== judgeEmail).length;
+  const aiScoresByDim: Partial<Record<DimKey, number>> = {};
+  for (const e of allEvals) {
+    aiScoresByDim[e.dimension as DimKey] = e.score;
+  }
 
   const reRaw = sp.re;
   const reParam = Array.isArray(reRaw) ? reRaw[0] : reRaw;
@@ -84,20 +110,24 @@ export default async function DrilldownPage({
 
   const shortId = id.length > 16 ? id.slice(0, 16) : id;
 
-  // Compute rank among completed submissions
+  // Compute rank among completed submissions by composite final score.
   const allSubs = await listSubmissions();
   const ranked = (
     await Promise.all(
       allSubs
         .filter((s) => s.status === "done")
-        .map(async (s) => ({
-          id: s.id,
-          total: avgScore(await getEvaluations(s.id)),
-        })),
+        .map(async (s) => {
+          const [evs, judges, votes] = await Promise.all([
+            getEvaluations(s.id),
+            listJudgeEvaluations(s.id),
+            listVotes(s.id),
+          ]);
+          return { id: s.id, final: scoreBreakdown(evs, judges, votes).final };
+        }),
     )
   )
-    .filter((s) => s.total != null)
-    .sort((a, b) => (b.total ?? 0) - (a.total ?? 0));
+    .filter((s) => s.final != null)
+    .sort((a, b) => (b.final ?? 0) - (a.final ?? 0));
   const rank = ranked.findIndex((s) => s.id === id);
   const rankLabel =
     rank >= 0 ? `#${String(rank + 1).padStart(2, "0")}` : "—";
@@ -154,10 +184,41 @@ export default async function DrilldownPage({
 
             <div className="dd-total">
               <div className="t-eyebrow" style={{ marginBottom: 12 }}>
-                score total · média 4 dimensões
+                score final · IA 25% + juízes 50% + popular 25%
               </div>
               <div className="dd-total-num">
-                <ScoreNumber value={total} size="huge" />
+                <ScoreNumber value={breakdown.final} size="huge" />
+              </div>
+              <div className="dd-breakdown">
+                <div className="dd-breakdown-item">
+                  <span className="dd-breakdown-label">IA</span>
+                  <span className="dd-breakdown-value">
+                    {breakdown.ai != null ? breakdown.ai.toFixed(1) : "—"}
+                  </span>
+                  <span className="dd-breakdown-meta">4 dim</span>
+                </div>
+                <div className="dd-breakdown-item">
+                  <span className="dd-breakdown-label">Júri</span>
+                  <span className="dd-breakdown-value">
+                    {breakdown.juri != null ? breakdown.juri.toFixed(1) : "—"}
+                  </span>
+                  <span className="dd-breakdown-meta">
+                    {breakdown.juriCount} juiz
+                    {breakdown.juriCount === 1 ? "" : "es"}
+                  </span>
+                </div>
+                <div className="dd-breakdown-item">
+                  <span className="dd-breakdown-label">Popular</span>
+                  <span className="dd-breakdown-value">
+                    {breakdown.popular != null
+                      ? breakdown.popular.toFixed(1)
+                      : "—"}
+                  </span>
+                  <span className="dd-breakdown-meta">
+                    {breakdown.popularCount} voto
+                    {breakdown.popularCount === 1 ? "" : "s"}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -250,6 +311,28 @@ export default async function DrilldownPage({
           </aside>
 
           <main className="dd-right">
+            {judgeEmail ? (
+              <JudgeScoreInput
+                submissionId={sub.id}
+                judgeEmail={judgeEmail}
+                initial={
+                  myEval
+                    ? {
+                        scores: {
+                          vibe: myEval.vibe,
+                          originalidade: myEval.originalidade,
+                          execucao: myEval.execucao,
+                          viabilidade: myEval.viabilidade,
+                        },
+                        notes: myEval.notes ?? "",
+                      }
+                    : null
+                }
+                aiScores={aiScoresByDim}
+                otherJudgesCount={otherJudgesCount}
+              />
+            ) : null}
+
             {DIM_ORDER.map((d, i) => {
               const ev = evalByDim.get(d);
               const evaluating = reEvaluating === d;

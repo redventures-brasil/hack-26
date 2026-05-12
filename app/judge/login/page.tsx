@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { Suspense } from "react";
 import { LoginForm } from "./login-form";
 
@@ -11,12 +12,15 @@ export default function JudgeLoginPage() {
       <div className="login-stage page-body">
         <div className="login-shell">
           <div className="login-logo">
-            <span>HACK</span>
-            <span style={{ color: "var(--t-fg)" }}>·</span>
-            <span>26</span>
-            <span className="t-eyebrow" style={{ marginLeft: 14 }}>
-              painel privado
-            </span>
+            <Image
+              src="/hack26-logo.webp"
+              alt="HACK-26"
+              width={2000}
+              height={599}
+              priority
+              className="login-logo-img"
+            />
+            <span className="t-eyebrow login-logo-tag">painel privado</span>
           </div>
 
           <Suspense

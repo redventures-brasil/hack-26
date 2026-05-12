@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Confetti } from "./confetti";
 
@@ -227,7 +228,14 @@ function IntroSlide() {
     <div className="rs-slide rs-intro">
       <div className="t-eyebrow">12 mai 2026 · ao vivo</div>
       <h1 className="rs-logo">
-        HACK<span className="rs-dot">·</span>26
+        <Image
+          src="/hack26-logo.webp"
+          alt="HACK-26"
+          width={2000}
+          height={599}
+          priority
+          className="rs-logo-img"
+        />
       </h1>
       <p className="rs-tagline">
         E os <em>vencedores</em> da edição vão pra…

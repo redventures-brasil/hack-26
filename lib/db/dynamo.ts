@@ -9,6 +9,7 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import type {
   EvaluationRow,
+  JudgeEvaluationRow,
   PopularVoteRow,
   SubmissionRow,
 } from "./schema";
@@ -33,6 +34,9 @@ const TABLES = {
   submissions: process.env.DYNAMO_SUBMISSIONS!,
   evaluations: process.env.DYNAMO_EVALUATIONS!,
   popularVotes: process.env.DYNAMO_POPULAR_VOTES!,
+  // Optional — feature degrades gracefully if the table isn't provisioned
+  // yet (env var unset → calls become no-ops returning empty lists).
+  judgeEvaluations: process.env.DYNAMO_JUDGE_EVALUATIONS,
 } as const;
 
 /* ------- row <-> item mapping ----------------------------------- */
@@ -276,6 +280,109 @@ export async function listVotes(
   );
   return ((out.Items ?? []) as VoteItem[]).map(toVote);
 }
+
+/* ------- judge evaluations ------------------------------------- */
+
+type JudgeEvalItem = {
+  submission_id: string;
+  judge_email: string;
+  vibe: number;
+  originalidade: number;
+  execucao: number;
+  viabilidade: number;
+  notes: string | null;
+  created_at: number;
+  updated_at: number;
+};
+
+function toJudgeEvaluation(it: JudgeEvalItem): JudgeEvaluationRow {
+  return {
+    submissionId: it.submission_id,
+    judgeEmail: it.judge_email,
+    vibe: it.vibe,
+    originalidade: it.originalidade,
+    execucao: it.execucao,
+    viabilidade: it.viabilidade,
+    notes: it.notes ?? null,
+    createdAt: new Date(it.created_at),
+    updatedAt: new Date(it.updated_at),
+  };
+}
+
+export async function listJudgeEvaluations(
+  submissionId?: string,
+): Promise<JudgeEvaluationRow[]> {
+  if (!TABLES.judgeEvaluations) return [];
+  if (submissionId) {
+    const out = await client().send(
+      new QueryCommand({
+        TableName: TABLES.judgeEvaluations,
+        KeyConditionExpression: "submission_id = :sid",
+        ExpressionAttributeValues: { ":sid": submissionId },
+      }),
+    );
+    return ((out.Items ?? []) as JudgeEvalItem[]).map(toJudgeEvaluation);
+  }
+  const out = await client().send(
+    new ScanCommand({ TableName: TABLES.judgeEvaluations }),
+  );
+  return ((out.Items ?? []) as JudgeEvalItem[]).map(toJudgeEvaluation);
+}
+
+export async function getJudgeEvaluation(
+  submissionId: string,
+  judgeEmail: string,
+): Promise<JudgeEvaluationRow | null> {
+  if (!TABLES.judgeEvaluations) return null;
+  const out = await client().send(
+    new GetCommand({
+      TableName: TABLES.judgeEvaluations,
+      Key: { submission_id: submissionId, judge_email: judgeEmail },
+    }),
+  );
+  return out.Item ? toJudgeEvaluation(out.Item as JudgeEvalItem) : null;
+}
+
+export async function upsertJudgeEvaluation(v: {
+  submissionId: string;
+  judgeEmail: string;
+  vibe: number;
+  originalidade: number;
+  execucao: number;
+  viabilidade: number;
+  notes: string | null;
+}): Promise<void> {
+  if (!TABLES.judgeEvaluations) {
+    throw new Error("judge evaluations table not configured");
+  }
+  // Preserve created_at on update
+  const existing = await client().send(
+    new GetCommand({
+      TableName: TABLES.judgeEvaluations,
+      Key: { submission_id: v.submissionId, judge_email: v.judgeEmail },
+    }),
+  );
+  const now = Date.now();
+  const createdAt = existing.Item
+    ? (existing.Item as JudgeEvalItem).created_at
+    : now;
+  const item: JudgeEvalItem = {
+    submission_id: v.submissionId,
+    judge_email: v.judgeEmail,
+    vibe: v.vibe,
+    originalidade: v.originalidade,
+    execucao: v.execucao,
+    viabilidade: v.viabilidade,
+    notes: v.notes,
+    created_at: createdAt,
+    updated_at: now,
+  };
+  await client().send(
+    new PutCommand({ TableName: TABLES.judgeEvaluations, Item: item }),
+  );
+}
+
+/* ------- popular votes ------------------------------------------ */
 
 export async function upsertVote(v: {
   id: string;

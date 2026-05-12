@@ -98,6 +98,41 @@ export const popularVotes = sqliteTable(
   ],
 );
 
+/* ============================================================
+   judge_evaluations — one row per (submission, judge_email).
+   Stores the 4 dimension scores given by a human judge during the
+   live event. Composite final score = 0.25 × AI + 0.50 × avg(judges)
+   + 0.25 × popular. Upsert by composite key (a judge can revise
+   their own scores before the freeze).
+   ============================================================ */
+export const judgeEvaluations = sqliteTable(
+  "judge_evaluations",
+  {
+    submissionId: text("submission_id")
+      .notNull()
+      .references(() => submissions.id, { onDelete: "cascade" }),
+    judgeEmail: text("judge_email").notNull(),
+    vibe: real("vibe").notNull(),
+    originalidade: real("originalidade").notNull(),
+    execucao: real("execucao").notNull(),
+    viabilidade: real("viabilidade").notNull(),
+    notes: text("notes"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (t) => [
+    uniqueIndex("judge_evaluations_submission_judge_idx").on(
+      t.submissionId,
+      t.judgeEmail,
+    ),
+  ],
+);
+
 export type SubmissionRow = typeof submissions.$inferSelect;
 export type EvaluationRow = typeof evaluations.$inferSelect;
 export type PopularVoteRow = typeof popularVotes.$inferSelect;
+export type JudgeEvaluationRow = typeof judgeEvaluations.$inferSelect;
