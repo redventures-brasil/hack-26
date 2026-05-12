@@ -5,14 +5,14 @@ export const metadata = {
   description: "Os times do HACK-26 e seus pontos focais.",
 };
 
-type Member = { email: string; focal?: boolean };
+type Member = { email: string };
 type Group = { num: number; members: Member[] };
 
 const GROUPS: Group[] = [
   {
     num: 1,
     members: [
-      { email: "thalison.morais@r2ventures.com.br", focal: true },
+      { email: "thalison.morais@r2ventures.com.br" },
       { email: "nathalia.lusquinos@r2ventures.com.br" },
       { email: "beatriz.gomes@r2ventures.com.br" },
     ],
@@ -20,7 +20,7 @@ const GROUPS: Group[] = [
   {
     num: 2,
     members: [
-      { email: "gabriel.zuza@r2ventures.com.br", focal: true },
+      { email: "gabriel.zuza@r2ventures.com.br" },
       { email: "alexandre.tsunoda@r2ventures.com.br" },
       { email: "bruna.guimaraes@r2ventures.com.br" },
     ],
@@ -36,7 +36,7 @@ const GROUPS: Group[] = [
   {
     num: 4,
     members: [
-      { email: "miqueias.moureira@r2ventures.com.br", focal: true },
+      { email: "miqueias.moureira@r2ventures.com.br" },
       { email: "isadora.luize@r2ventures.com.br" },
       { email: "kleber.zanella@r2ventures.com.br" },
     ],
@@ -44,7 +44,7 @@ const GROUPS: Group[] = [
   {
     num: 5,
     members: [
-      { email: "ana.marques@r2ventures.com.br", focal: true },
+      { email: "ana.marques@r2ventures.com.br" },
       { email: "ryan.alves@r2ventures.com.br" },
       { email: "ricardo.barreto@r2ventures.com.br" },
     ],
@@ -52,7 +52,7 @@ const GROUPS: Group[] = [
   {
     num: 6,
     members: [
-      { email: "tiago.palte@r2ventures.com.br", focal: true },
+      { email: "tiago.palte@r2ventures.com.br" },
       { email: "dico.gomes@r2ventures.com.br" },
       { email: "bruno.rocca@r2ventures.com.br" },
     ],
@@ -60,7 +60,7 @@ const GROUPS: Group[] = [
   {
     num: 7,
     members: [
-      { email: "michel.freitas@r2ventures.com.br", focal: true },
+      { email: "michel.freitas@r2ventures.com.br" },
       { email: "julia.menezes@r2ventures.com.br" },
       { email: "rafael.dias@r2ventures.com.br" },
     ],
@@ -88,9 +88,7 @@ export default function GruposPage() {
               Os <em>grupos</em>.
             </h1>
             <p className="jg-lede">
-              {GROUPS.length} times, {totalPeople} pessoas. Cada grupo tem
-              um ponto focal — pessoa que recebe os avisos da organização e
-              é o contato em caso de dúvida durante o evento.
+              {GROUPS.length} times, {totalPeople} pessoas, três por grupo.
             </p>
             <div className="cf-stat-strip">
               <div className="cf-stat">
@@ -129,19 +127,9 @@ export default function GruposPage() {
                   <ul className="gr-members">
                     {g.members.map((m) => (
                       <li key={m.email} className="gr-member">
-                        <div className="gr-member-row">
-                          <span className="gr-member-name">
-                            {humanizeName(m.email)}
-                          </span>
-                          {m.focal && (
-                            <span
-                              className="gr-focal-chip"
-                              title="Ponto focal — recebe os avisos da organização"
-                            >
-                              ponto focal
-                            </span>
-                          )}
-                        </div>
+                        <span className="gr-member-name">
+                          {humanizeName(m.email)}
+                        </span>
                         <a
                           href={`mailto:${m.email}`}
                           className="gr-member-email"
@@ -156,13 +144,6 @@ export default function GruposPage() {
             </div>
           </section>
 
-          <footer className="jg-foot">
-            <p>
-              <em>Ponto focal</em> = pessoa que a organização contata pra
-              avisos do evento. Grupos sem ponto focal definido recebem o
-              aviso por canal geral.
-            </p>
-          </footer>
         </article>
       </div>
     </div>
